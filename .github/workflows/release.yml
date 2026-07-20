@@ -1,9 +1,8 @@
 name: Release
 
 on:
-  push:
-    tags:
-      - v**
+  release:
+    types: [published]
 
 permissions:
   contents: write
@@ -12,10 +11,16 @@ permissions:
 
 jobs:
   create-release:
-    uses: zotero-plugin-dev/workflows/.github/workflows/release-plugin.yml@main
+    uses: zotero-plugin-dev/workflows/.github/workflows/release-plugin.yml@4cc52c6b85e745d0601516ef07f0c0fd54c04409
     # You can customize any of the inputs here.
     # If you omit an input, its default value will be used.
     with:
-      build: "npm run build"
+      # Guard for SemVer version 2.0.0 v-prefixed tag, translated to POSIX ERE for bash's [[ =~ ]].
+      # SEE: https://semver.org/#is-there-a-suggested-regular-expression-regex-to-check-a-semver-string
+      # Then stamp the package version from the release tag
+      build: |
+        semver='^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-((0|[1-9][0-9]*|[0-9]*[a-zA-Z-][0-9a-zA-Z-]*)(\.(0|[1-9][0-9]*|[0-9]*[a-zA-Z-][0-9a-zA-Z-]*))*))?(\+([0-9a-zA-Z-]+(\.[0-9a-zA-Z-]+)*))?$'
+        [[ "$GITHUB_REF_NAME" =~ $semver ]] || { echo "Tag '$GITHUB_REF_NAME' is not v-prefixed semver"; exit 1; }
+        npm pkg set version="${GITHUB_REF_NAME#v}"
       release: "npm run release"
     secrets: inherit

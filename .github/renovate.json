@@ -1,4 +1,12 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": ["github>zotero-plugin-dev/renovate-config"]
+  "extends": ["github>zotero-plugin-dev/renovate-config"],
+  "pre-commit": {
+    "enabled": true
+  },
+  "lockFileMaintenance": {
+    "enabled": true,
+    "automerge": true,
+    "extends": ["schedule:monthly"]
+  }
 }

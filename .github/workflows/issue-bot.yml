@@ -17,4 +17,7 @@ permissions:
 
 jobs:
   issue-bot:
-    uses: zotero-plugin-dev/workflows/.github/workflows/issue-bot.yml@main
+    uses: zotero-plugin-dev/workflows/.github/workflows/issue-bot.yml@4cc52c6b85e745d0601516ef07f0c0fd54c04409
+    with:
+      enable-stale: false # Stale bots are not productive
+      enable-lock: false # We allow grave digging
