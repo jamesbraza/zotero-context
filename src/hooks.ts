@@ -70,12 +70,6 @@ async function onMainWindowLoad(win: _ZoteroTypes.MainWindow): Promise<void> {
 
   UIExampleFactory.registerStyleSheet(win);
 
-  UIExampleFactory.registerRightClickMenuItem();
-
-  UIExampleFactory.registerRightClickMenuPopup(win);
-
-  UIExampleFactory.registerWindowMenuWithSeparator();
-
   PromptExampleFactory.registerNormalCommandExample();
 
   PromptExampleFactory.registerAnonymousCommandExample(win);
@@ -109,7 +103,7 @@ function onShutdown(): void {
 
 /**
  * This function is just an example of dispatcher for Notify events.
- * Any operations should be placed in a function to keep this funcion clear.
+ * Any operations should be placed in a function to keep this function clear.
  */
 async function onNotify(
   event: string,
@@ -132,7 +126,7 @@ async function onNotify(
 
 /**
  * This function is just an example of dispatcher for Preference UI events.
- * Any operations should be placed in a function to keep this funcion clear.
+ * Any operations should be placed in a function to keep this function clear.
  * @param type event type
  * @param data event data
  */

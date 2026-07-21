@@ -9,27 +9,26 @@ on:
       - main
 
 jobs:
-  lint:
+  pre-commit:
     runs-on: ubuntu-latest
     env:
-      GITHUB_TOKEN: ${{ secrets.GitHub_TOKEN }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - name: Setup JS
         uses: zotero-plugin-dev/workflows/setup-js@main
-      - name: Run Lint
-        run: npm run lint:check
+      - uses: j178/prek-action@v2
 
   build:
     runs-on: ubuntu-latest
     env:
-      GITHUB_TOKEN: ${{ secrets.GitHub_TOKEN }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - name: Setup JS
         uses: zotero-plugin-dev/workflows/setup-js@main
       - name: Run Build
         run: npm run build
       - name: Upload build result
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: build-result
           path: .scaffold/build
