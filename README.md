@@ -410,3 +410,5 @@ This section shows the directory structure of a template.
 Use this code under AGPL. No warranties are provided. Keep the laws of your locality in mind!
 
 If you want to change the license, please contact me at <wyzlshx@foxmail.com>
+
+<!-- Test change to trigger Copilot code review; PR will be closed. -->
