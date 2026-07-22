@@ -13,11 +13,11 @@ Research established (see exploration session, 2026-07-21):
 - claude.ai/desktop accept pasted images (PNG/JPEG, 5MB); mixed text+image single paste and clipboard
   _file_ paste are unverified.
 
-**Spike S2 findings (2026-07-21, Zotero 9.0.6, resolved — see test/spike-internals.test.ts):**
+**Spike S2 findings (2026-07-21, Zotero 9.0.6, resolved — formalized into test/adapter-smoke.test.ts, task 8.2):**
 
 - **Current Zotero stable is 9.0.6**, not 7.x. Dev loop: Linux Zotero tarball under WSLg (`.env` points at `~/.local/opt/Zotero_linux-x86_64`; requires `libasound2t64` + `libdbus-glib-1-2`).
 - `reader._internalReader._primaryView` reachable; pdf.js (`PDFViewerApplication`) lives directly in the reader iframe (no nested iframe on 9.0.6).
-- **Sentence segments are shipped and callable**: `view._initReadAloudSegments()` returns segments `{anchor, text, position: {pageIndex, rects}, granularity, offsetStart, offsetEnd}` (212 for a 15-page paper), cached on `view._readAloudSegments`. D2 therefore becomes: _call this machinery via the adapter, filter by granularity_; porting sdt-segments/sentencex-ts is the fallback if the private API churns. `sentencex-ts` dependency deferred until needed.
+- **Sentence segments are shipped and callable**: `view._initReadAloudSegments()` returns segments `{anchor, text, position: {pageIndex, rects}, granularity, offsetStart, offsetEnd}` (212 for a 15-page paper), cached on `view._readAloudSegments`. D2 therefore becomes: _call this machinery via the adapter, filter by granularity_; porting sdt-segments/sentencex-ts is the fallback if the private API churns. `sentencex-ts` dependency deferred until needed. The call is a fragile one-shot — it stashes its guard promise before computing and permanently stashes empty results if run before the document loads — so the adapter reads the stash, gates the first call on `numPages`, and clears poisoned stashes (measured: view appears ~1.2s after `Reader.open` resolves, segments at ~3.6s). _The predicted churn has already landed_: Zotero 10.0-beta replaces this machinery with an SDT pipeline (caught by the smoke suite on beta CI, 2026-07-23 — backlog 10.4); CI is pinned to the release channel until the port.
 - Per-char geometry confirmed: `view._pdfPages[pageIndex].chars` with `{c, u, rect, inlineRect, fontSize, fontName, bold, italic, baseline, offset, pageIndex, ...}` — the fallback path and hit-testing substrate.
 - Outline: `pdfDocument.getOutline()` **throws over Xrays** (TypedArray access); works via `Components.utils.waiveXrays(...)` — returned 7 titled items with dests. `view._outline` exists but is lazily populated.
 - Page canvases present (4 mounted, 960×1242 at default zoom) for area rendering; `getPageData` present on the pdfDocument proxy.

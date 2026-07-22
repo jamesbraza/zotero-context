@@ -6,7 +6,7 @@ Active readers of paper PDFs constantly interrupt their thinking to ferry contex
 
 ## What Changes
 
-- Add a **grab mode** to the Zotero reader: entered via toolbar button or configurable hotkey (toggle or press-and-hold), with a visible mode indicator.
+- Add a **grab mode** to the Zotero reader: entered via toolbar button or hotkey (toggle; a press-and-hold semantics pref is backlog 10.2), with a visible mode indicator.
 - Add two clicks-not-drags grab interactions:
   - **Sentence-snap text grab**: hovering highlights the sentence under the cursor; click grabs it as text; shift-click extends to adjacent sentences.
   - **Two-click area grab**: click two opposite corners to capture a region (figure, table, formula) as an image. No press-and-hold dragging anywhere.

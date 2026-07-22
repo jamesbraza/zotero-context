@@ -8,21 +8,26 @@
 
 ## 2. Foundations
 
-- [ ] 2.1 Add dependencies: `sentencex-ts`, `@modelcontextprotocol/sdk`; confirm both bundle in the Zotero plugin build
+- [x] 2.1 Dependencies: `sentencex-ts` superseded (Zotero 9's shipped segments + `Intl.Segmenter` cover it);
+      `@modelcontextprotocol/sdk` moves to task 7.2 where it's first needed
 - [x] 2.2 Create three-layer module structure (`src/core/`, `src/adapter/`, `src/modules/` shell) with lint rule/convention barring Zotero imports in core and internals access outside the adapter
 - [x] 2.3 Implement reader adapter: page chars/text access, outline access, page-region-to-PNG rendering, overlay mount/unmount — with graceful failure results (no throws to callers)
 - [x] 2.4 Define core grab model and trail (append-only log, multi-paper sources, first-grab-per-paper tracking)
 
 ## 3. Grab mode
 
-- [ ] 3.1 Toolbar button + hotkey registration with prefs: hotkey binding and toggle vs. press-and-hold semantics
+- [x] 3.1 Toolbar button + hotkey registration shipped (toggle semantics); press-and-hold pref
+      deferred to backlog 10.2
 - [x] 3.2 Mode state machine with visible indication (button state, cursor) and clean teardown of overlays/listeners on exit and Escape
 
 ## 4. Area grab + provenance + clipboard floor (first usable build)
 
 - [x] 4.1 Two-click capture interaction: corner anchor, cursor-tracking preview rectangle, Escape cancel
-- [x] 4.2 Region-to-PNG rendering via adapter (annotation-pipeline fallback only if canvas path fails S2); verify no annotations/library traces
-- [x] 4.3 Provenance builder: full citation via Zotero citation infra on first grab per paper per session; compact `§, p.` locator after; outline→section mapping with page-only fallback
+- [x] 4.2 Region-to-PNG rendering via adapter (annotation-pipeline fallback was unnecessary; canvas
+      path works). Ephemerality holds by construction: no annotation/save APIs are called anywhere,
+      enforced by an eslint `no-restricted-syntax` guard over `src/`
+- [x] 4.3 Provenance builder: full citation from item metadata on first grab per paper per session;
+      compact `§, p.` locator after; outline→section mapping with page-only fallback
 - [x] 4.4 Clipboard floor: per-grab immediate copy (text grabs as header+quote; image grabs as native image + header text flavor) via ClipboardHelper
 - [x] 4.5 Manual end-to-end check: read a real paper, grab a figure and a formula, paste both into claude.ai with correct headers
 
@@ -31,11 +36,13 @@
 - [x] 5.1 Text segments via the adapter calling Zotero 9's shipped `_initReadAloudSegments()` (superseded porting sdt-segments/sentencex-ts, which remains the fallback if the private API churns); cached per reader
 - [x] 5.2 Hover hit-testing + sentence glow overlay; no-text-layer pages degrade silently
 - [x] 5.3 Click-to-grab and shift-click range extension in reading order
-- [ ] 5.4 Manual check on a two-column and a math-heavy paper; note segmentation quality issues
+- [x] 5.4 Manual check on a two-column (GoBI) and math-heavy (Attention) paper — exposed and fixed the
+      sentence-geometry drift (ligatures/dehyphenation); scans fall back to line targets as designed
 
 ## 6. Trail delivery
 
-- [x] 6.1 Session-bundle copy action implementing the one-action invariant with the S1-chosen composition (mixed HTML or text+sequential-images fallback, degradation surfaced to user)
+- [x] 6.1 Session-bundle copy action implementing the one-action invariant with the S1-chosen
+      composition (text bundle + sequential image copies, multi-step delivery surfaced to user)
 - [ ] 6.2 Rendering profiles: rich paste vs. file-path-on-disk (write grab images to a stable directory, reference paths in text); profile pref
 - [x] 6.3 Paper-intro action: citation + abstract + "PDF attached" blurb; include PDF file on
       clipboard where S3 proved support
@@ -49,8 +56,37 @@
 
 ## 8. Quality and release
 
-- [ ] 8.1 Unit tests for core (segmentation edge cases, trail/first-grab logic, provenance
-      fallback) via `zotero-plugin test`
-- [ ] 8.2 Adapter smoke tests against current Zotero in CI so internals churn is caught on Zotero updates
-- [ ] 8.3 README/docs: grab-mode usage, prefs, MCP setup, known limitations (element-picking and persistence deferred)
-- [ ] 8.4 Tag v0.1.0 release via CI release flow
+- [x] 8.0 Code-review rounds (four-perspective review + Copilot ×2): bug fixes, the degrade+log
+      error contract, dead-subsystem cleanup, and four spec clauses amended to shipped v0.1
+      behavior — details in branch history
+- [x] 8.1 Unit tests for core (test/core.test.ts): trail watermarks/first-per-paper, provenance
+      formats, bundle ordering, sentence alignment incl. the balanced ligature/hyphen drift
+      regression, snap-target hit-testing/range joins, caption-strip wrapping, and segment-cache
+      transient-vs-absent semantics
+- [x] 8.2 Formalize the diagnostic spikes into committed adapter smoke tests
+      (test/adapter-smoke.test.ts: arXiv fixture imported on demand, chars/segments/outline/
+      canvas-crop surfaces + early-race segment convergence) so reader-internals churn is caught
+      in CI on Zotero updates
+- [ ] 8.3 Tag v0.1.0 release via CI release flow (after groups 7 and 9)
+
+## 9. Documentation
+
+- [x] 9.1 Populate README.md: pitch, install, usage guide + hotkey table, provenance examples,
+      grab-button and caption-strip SVG figures (real screenshots can replace the SVGs later)
+- [ ] 9.2 README: MCP client setup recipes (Claude desktop config JSON, Claude Code `claude mcp add`),
+      written as part of task 7.4 verification
+- [x] 9.3 README: known limitations and roadmap pointers (element-picking deferred, scans use
+      line-level snap, browser-extension sibling planned; link openspec change for details)
+- [x] 9.4 CONTRIBUTING.md: dev-loop notes (Linux Zotero under WSLg, `.env` setup, Windows XPI
+      sanity checks, testing caveats)
+
+## 10. Backlog (unscheduled, post-v0.1)
+
+- [ ] 10.1 Manual granularity toggle (sentence/line/paragraph cycle hotkey + default pref)
+- [ ] 10.2 Press-and-hold hotkey semantics pref (deferred from 3.1)
+- [ ] 10.3 Session-recap paste size guardrails (warn when bundle text exceeds chat input limits)
+- [ ] 10.4 Zotero 10 segments port: 10.0-beta removes `_initReadAloudSegments` for an SDT
+      pipeline (`_loadSDT()` + `buildSDTReadAloudSegments`, source-position geometry — caught
+      by the 8.2 smoke suite on beta CI, 2026-07-23); add an adapter path (or the sdt-segments
+      port design.md names as fallback) before Zotero 10 ships, and consider a non-blocking
+      beta CI lane for early churn warning
