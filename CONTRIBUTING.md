@@ -45,6 +45,42 @@ and watches `src/**` and `addon/**` to rebuild and hot-reload on change.
 Debugging tips: run snippets in Zotero via Tools → Developer → Run JavaScript,
 and log with `Zotero.debug()` (view via Help → Debug Output Logging → View Output).
 
+### WSL
+
+Zotero has no WSL build, but the Linux build runs fine under WSLg:
+
+```shell
+mkdir -p ~/.local/opt && cd ~/.local/opt
+URL='https://www.zotero.org/download/client/dl?platform=linux-x86_64&channel=release'
+wget -O zotero.tar.xz "$URL"
+tar -xJf zotero.tar.xz && rm zotero.tar.xz
+sudo apt-get install -y libasound2t64 libdbus-glib-1-2  # Ubuntu 24.04 runtime deps
+```
+
+Then point `.env` at `~/.local/opt/Zotero_linux-x86_64/zotero`,
+use fresh directories for the profile and data-dir paths (they're created on first run),
+and add `DISPLAY = :0` so the GUI appears on the WSLg desktop.
+To sanity-check a build on Windows Zotero,
+`npm run build` and install `.scaffold/build/*.xpi` via Tools → Plugins → Install Plugin From File
+(bump `version` in `package.json` locally first, since same-version reinstalls don't reliably
+swap the loaded code, but don't commit the bump).
+
+## Testing
+
+`npm test` builds the plugin and runs the mocha suites in `test/` inside a live Zotero instance,
+so tests have the real `Zotero` API and reader available
+(see `test/core.test.ts` for pure-logic tests; throwaway probe suites that open a real reader
+and dump internals findings to JSON are a useful pattern for diagnosing reader-internals
+issues, but are kept out of version control).
+Caveats:
+
+- Run one test invocation at a time;
+  concurrent runs contend over the shared test profile and hang.
+- A run takes minutes (it boots Zotero); killed runs can orphan `zotero-bin` processes
+  that later runs then trip over.
+- The generated `typings/i10n.d.ts` is rewritten by builds;
+  concurrent build/typecheck can race on it (rerun typecheck if it flags locale keys).
+
 ## Checks
 
 Pre-commit hooks run automatically on staged files via prek.
