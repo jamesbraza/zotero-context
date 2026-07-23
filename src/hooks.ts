@@ -18,25 +18,30 @@ async function onStartup() {
   registerPaperIntro();
   registerBundleDelivery();
 
-  await Promise.all(
-    Zotero.getMainWindows().map((win) => onMainWindowLoad(win)),
-  );
+  for (const win of Zotero.getMainWindows()) {
+    onMainWindowLoad(win);
+  }
 
   // Mark initialized as true to confirm plugin loading status
   // outside of the plugin (e.g. scaffold testing process)
   addon.data.initialized = true;
 }
 
-async function onMainWindowLoad(win: _ZoteroTypes.MainWindow): Promise<void> {
+function onMainWindowLoad(win: _ZoteroTypes.MainWindow): void {
   // Create ztoolkit for every window
   addon.data.ztoolkit = createZToolkit();
 
-  win.MozXULElement.insertFTLIfNeeded(
+  // MozXULElement is typed `any` in zotero-types' MainWindow
+  // (https://github.com/windingwind/zotero-types/issues/94)
+  const mozXULElement = win.MozXULElement as {
+    insertFTLIfNeeded: (path: string) => void;
+  };
+  mozXULElement.insertFTLIfNeeded(
     `${addon.data.config.addonRef}-mainWindow.ftl`,
   );
 }
 
-async function onMainWindowUnload(_win: Window): Promise<void> {
+function onMainWindowUnload(_win: Window): void {
   deactivateAllGrabModes();
   ztoolkit.unregisterAll();
 }

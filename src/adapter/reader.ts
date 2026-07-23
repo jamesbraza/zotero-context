@@ -49,10 +49,10 @@ export function getPageChars(
   reader: ReaderInstance,
   pageIndex: number,
 ): CharBox[] | null {
-  let pages = charsCache.get(reader as object);
+  let pages = charsCache.get(reader);
   if (!pages) {
     pages = new Map();
-    charsCache.set(reader as object, pages);
+    charsCache.set(reader, pages);
   }
   const cached = pages.get(pageIndex);
   if (cached) return cached;
@@ -194,7 +194,7 @@ export function segmentDiagnostics(reader: ReaderInstance): string {
     if (!view) return "no view";
     return [
       `apiAbsent=${typeof view._initReadAloudSegments !== "function"}`,
-      `numPages=${getWaivedPdfDocument(reader)?.numPages ?? "n/a"}`,
+      `numPages=${String(getWaivedPdfDocument(reader)?.numPages ?? "n/a")}`,
       `stashPromise=${typeof view._readAloudSegmentsPromise}`,
       `stash=${typeof view._readAloudSegments}`,
     ].join(" ");
@@ -281,7 +281,7 @@ export async function getOutlineEntries(
         const pageIndex = await pdfDoc.getPageIndex(ref);
         if (Number.isInteger(pageIndex) && pageIndex >= 0) {
           // XYZ dests: [ref, {name}, x, y, zoom]; FitH/FitBH: [ref, {name}, y]
-          const destName = (explicit[1] as any)?.name;
+          const destName = explicit[1]?.name;
           const rawY =
             destName === "XYZ"
               ? explicit[3]
@@ -402,7 +402,7 @@ function getSurface(
   pageIndex: number,
 ): { viewport: any; box: DOMRect; fx: number; fy: number } | null {
   const page = getPdfJsPage(reader, pageIndex);
-  const canvas = pageEl.querySelector("canvas") as HTMLCanvasElement | null;
+  const canvas = pageEl.querySelector("canvas");
   if (!page?.viewport || !canvas) return null;
   const box = canvas.getBoundingClientRect();
   if (box.width <= 0 || box.height <= 0) return null;
@@ -471,7 +471,7 @@ export function cropPageRegion(
   maxBytes?: number,
 ): string | null {
   try {
-    const canvas = pageEl.querySelector("canvas") as HTMLCanvasElement | null;
+    const canvas = pageEl.querySelector("canvas");
     const doc = getReaderDocument(reader);
     if (!canvas || !doc) return null;
     const canvasBox = canvas.getBoundingClientRect();

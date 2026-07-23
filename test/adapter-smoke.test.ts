@@ -55,12 +55,13 @@ describe("adapter smoke (live reader)", function () {
       contentType: "application/pdf",
     });
     const opened = await Zotero.Reader.open(attachment.id);
-    reader =
+    const found =
       opened ??
-      (Zotero.Reader as any)._readers.find(
-        (r: ReaderInstance) => r.itemID === attachment.id,
-      );
-    assert.ok(reader, "reader opened for fixture attachment");
+      (
+        Zotero.Reader as unknown as { _readers: ReaderInstance[] }
+      )._readers.find((r) => r.itemID === attachment.id);
+    assert.ok(found, "reader opened for fixture attachment");
+    reader = found!;
     // Race the reader's init on purpose: this is the transient window the
     // segment cache must not poison (segment-cache.ts / grab-mode fix)
     earlySegments = await getSegmentsCached(reader);
@@ -68,7 +69,11 @@ describe("adapter smoke (live reader)", function () {
 
   after(async function () {
     this.timeout(30_000);
-    if (reader) reader.close();
+    // close() is defined on the ReaderTab/ReaderWindow subclasses that
+    // Zotero.Reader.open() returns, but zotero-types only models the
+    // ReaderInstance base class
+    // (https://github.com/windingwind/zotero-types/issues/94)
+    if (reader) (reader as ReaderInstance & { close(): void }).close();
     if (attachment) await attachment.eraseTx();
   });
 
@@ -131,12 +136,12 @@ describe("adapter smoke (live reader)", function () {
       CONVERGE_MS,
     );
     assert.ok(canvas, "a page canvas rendered");
-    const pageEl = canvas!.closest(".page");
+    const pageEl = canvas.closest(".page");
     assert.ok(pageEl, "canvas sits inside a page element");
-    const box = canvas!.getBoundingClientRect();
+    const box = canvas.getBoundingClientRect();
     const hit = getPageAt(reader, box.left + box.width / 2, box.top + 20);
     assert.ok(hit, "page hit-test resolves at canvas center");
-    const png = cropPageRegion(reader, pageEl!, {
+    const png = cropPageRegion(reader, pageEl, {
       left: box.left + 10,
       top: box.top + 10,
       width: 80,

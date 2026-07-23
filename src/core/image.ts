@@ -85,8 +85,12 @@ export function wrapToWidth(
 function loadImage(doc: Document, src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = doc.createElement("img");
-    img.onload = () => resolve(img);
-    img.onerror = () => reject(new Error("caption strip: image load failed"));
+    img.onload = () => {
+      resolve(img);
+    };
+    img.onerror = () => {
+      reject(new Error("caption strip: image load failed"));
+    };
     img.src = src;
   });
 }
