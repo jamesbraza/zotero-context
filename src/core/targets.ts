@@ -13,8 +13,8 @@ export function hitTestTarget(
   targets: readonly SnapTarget[],
   point: { x: number; y: number },
 ): number {
-  for (let i = 0; i < targets.length; i++) {
-    for (const [x0, y0, x1, y1] of targets[i].rects) {
+  for (const [i, target] of targets.entries()) {
+    for (const [x0, y0, x1, y1] of target.rects) {
       if (
         point.x >= x0 - HIT_PADDING &&
         point.x <= x1 + HIT_PADDING &&

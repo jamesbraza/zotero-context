@@ -508,7 +508,9 @@ async function handleTextClick(
   const paper = resolvePaper(reader);
   if (!doc || !paper) return;
 
-  const first = targets[lo];
+  // lo = min(anchor, index) ≤ index, and index is an in-bounds
+  // hitTestTarget result on this same targets array
+  const first = targets[lo]!;
   const pageIndex = first.pageIndex;
   const topY = first.rects[0]?.[3] ?? null;
   const { grab, isFirstForPaper } = trail.append({

@@ -40,7 +40,9 @@ export function registerBundleDelivery() {
 async function step(fullRecap: boolean) {
   // Mid-bundle: cycle the next image (a shift press restarts instead)
   if (!fullRecap && cursor) {
-    const { grab, caption } = cursor.images[cursor.next];
+    // In bounds: cursor is only created as { next: 0 } over nonempty images,
+    // and nulled below the moment next reaches images.length (left === 0)
+    const { grab, caption } = cursor.images[cursor.next]!;
     const doc = Zotero.getMainWindow().document;
     let png = grab.imageDataUrl!;
     try {

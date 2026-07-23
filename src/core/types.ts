@@ -16,7 +16,7 @@ export interface GrabSource {
   /** Zero-based page index in the document. */
   pageIndex?: number;
   /** Resolved outline section (e.g. "4.3.2 Scaled Dot-Product Attention"). */
-  section?: string;
+  section?: string | undefined;
 }
 
 export interface Grab {
