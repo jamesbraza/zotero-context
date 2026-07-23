@@ -146,10 +146,7 @@ export function deactivateAllGrabModes() {
   }
 }
 
-export function toggleGrabMode(
-  reader: ReaderInstance,
-  button?: HTMLElement | null,
-) {
+function toggleGrabMode(reader: ReaderInstance, button?: HTMLElement | null) {
   const state = getState(reader);
   if (button) state.buttonEl = button;
   if (state.active) {

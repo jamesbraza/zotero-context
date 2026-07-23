@@ -5,7 +5,7 @@
  * reused by the future browser-extension sibling and published standalone.
  */
 
-export type GrabKind = "text" | "image";
+type GrabKind = "text" | "image";
 
 /** Where a grab came from, sufficient to render its provenance header. */
 export interface GrabSource {

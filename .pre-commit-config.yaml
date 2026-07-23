@@ -73,3 +73,9 @@ repos:
         language: system
         pass_filenames: false
         types_or: [ts, tsx]
+      - id: knip
+        name: knip
+        entry: npx --no-install knip
+        language: system
+        pass_filenames: false
+        types_or: [ts, tsx, javascript, jsx, json]
