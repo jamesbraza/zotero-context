@@ -40,4 +40,13 @@ jobs:
     steps:
       - name: Setup JS
         uses: zotero-plugin-dev/workflows/setup-js@v1.0.0
+      # Pin the release channel: zotero-plugin-scaffold otherwise downloads
+      # the beta, whose reader internals differ from the supported target
+      # (10.0-beta already replaced the segment machinery — see openspec
+      # backlog on the SDT port)
+      - name: Install Zotero (release channel)
+        run: |
+          wget -qO zotero.tar.xz 'https://www.zotero.org/download/client/dl?platform=linux-x86_64&channel=release'
+          tar -xf zotero.tar.xz
+          echo "ZOTERO_PLUGIN_ZOTERO_BIN_PATH=$PWD/Zotero_linux-x86_64/zotero" >> "$GITHUB_ENV"
       - run: npm run test

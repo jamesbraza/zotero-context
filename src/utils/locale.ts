@@ -1,6 +1,16 @@
 import { config } from "../../package.json";
 import { FluentMessageId } from "../../typings/i10n";
 
+/**
+ * Unprefixed ftl key as written in addon/locale (e.g. "prefs-title").
+ * The generated FluentMessageId union carries the addonRef prefix that
+ * _getString adds at lookup time, so strip it for the public signature.
+ */
+// The generated union is prefixed in production builds and unprefixed in dev
+// builds, so strip the prefix when present and pass through otherwise.
+type StripAddonRef<T> = T extends `zoterocontext-${infer K}` ? K : T;
+type LocaleKey = StripAddonRef<FluentMessageId>;
+
 export { initLocale, getString, getLocaleID };
 
 /**
@@ -40,10 +50,10 @@ function initLocale() {
  * getString("addon-dynamic-example", { args: { count: 2 } }); // I have 2 apples
  * ```
  */
-function getString(localString: FluentMessageId): string;
-function getString(localString: FluentMessageId, branch: string): string;
+function getString(localString: LocaleKey): string;
+function getString(localString: LocaleKey, branch: string): string;
 function getString(
-  localeString: FluentMessageId,
+  localeString: LocaleKey,
   options: { branch?: string | undefined; args?: Record<string, unknown> },
 ): string;
 function getString(...inputs: any[]) {
@@ -69,7 +79,7 @@ interface Pattern {
 }
 
 function _getString(
-  localeString: FluentMessageId,
+  localeString: LocaleKey,
   options: { branch?: string | undefined; args?: Record<string, unknown> } = {},
 ): string {
   const localStringWithPrefix = `${config.addonRef}-${localeString}`;
@@ -91,6 +101,6 @@ function _getString(
   }
 }
 
-function getLocaleID(id: FluentMessageId) {
+function getLocaleID(id: LocaleKey) {
   return `${config.addonRef}-${id}`;
 }
