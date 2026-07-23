@@ -40,13 +40,35 @@ jobs:
     steps:
       - name: Setup JS
         uses: zotero-plugin-dev/workflows/setup-js@v1.0.0
+      # Scaffold caches chai.js here; a warm cache also silences its
+      # cold-start "No local chai.js found" notice
+      - name: Cache scaffold test libraries
+        uses: actions/cache@v6
+        with:
+          path: .scaffold/cache
+          key: scaffold-cache-${{ hashFiles('package-lock.json') }}
+          restore-keys: scaffold-cache-
+      - name: Resolve Zotero release version
+        id: zotero
+        run: |
+          url=$(curl -fsSLI -o /dev/null -w '%{url_effective}' 'https://www.zotero.org/download/client/dl?platform=linux-x86_64&channel=release')
+          version=$(basename "$(dirname "$url")")
+          # A wrong-but-constant version would silently pin a stale cached
+          # Zotero via the download-skip guard below — fail loudly instead
+          [[ "$version" =~ ^[0-9]+(\.[0-9]+)*$ ]] || { echo "unexpected download URL: $url" >&2; exit 1; }
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - name: Cache Zotero
+        uses: actions/cache@v6
+        with:
+          path: zotero.tar.xz
+          key: zotero-linux-x86_64-release-${{ steps.zotero.outputs.version }}
       # Pin the release channel: zotero-plugin-scaffold otherwise downloads
       # the beta, whose reader internals differ from the supported target
       # (10.0-beta already replaced the segment machinery — see openspec
       # backlog on the SDT port)
       - name: Install Zotero (release channel)
         run: |
-          wget -qO zotero.tar.xz 'https://www.zotero.org/download/client/dl?platform=linux-x86_64&channel=release'
+          [ -s zotero.tar.xz ] || wget -qO zotero.tar.xz 'https://www.zotero.org/download/client/dl?platform=linux-x86_64&channel=release'
           tar -xf zotero.tar.xz
           echo "ZOTERO_PLUGIN_ZOTERO_BIN_PATH=$PWD/Zotero_linux-x86_64/zotero" >> "$GITHUB_ENV"
       - run: npm run test
