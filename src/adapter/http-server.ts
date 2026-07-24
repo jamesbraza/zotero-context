@@ -33,8 +33,16 @@ export type HttpHandler = (req: HttpRequest) => Promise<HttpResponse>;
 
 export interface HttpServerHandle {
   port: number;
-  close: () => void;
+  /** Resolves once pending requests drain and the socket is released. */
+  close: () => Promise<void>;
 }
+
+/** 1 MiB (2^20). Inbound JSON-RPC bodies here are tiny (tool calls with a
+ * grab id or watermark), so any conventional JSON-body cap has huge margin;
+ * this matches nginx's default client_max_body_size rather than any MCP
+ * spec value. Oversized bodies are refused before the gate and JSON.parse
+ * see them (httpd.js has already buffered the bytes by then). */
+const MAX_BODY_BYTES = 1_048_576;
 
 /**
  * Serve `handler` at `path` on 127.0.0.1:<port>. Throws on bind failure
@@ -54,6 +62,10 @@ export function startHttpServer(
       response.processAsync();
       let req: HttpRequest;
       try {
+        if (request.bodyInputStream.available() > MAX_BODY_BYTES) {
+          writeResponse(response, { status: 413, body: "" });
+          return;
+        }
         req = toRequest(request);
       } catch (e) {
         logError("mcp http request", e);
@@ -74,15 +86,17 @@ export function startHttpServer(
   server.start(port);
   return {
     port,
-    close: () => {
-      try {
-        server.stop(() => {
-          // Nothing to clean up once pending requests drain
-        });
-      } catch (e) {
-        logError("mcp http close", e);
-      }
-    },
+    close: () =>
+      new Promise<void>((resolve) => {
+        try {
+          server.stop(() => {
+            resolve();
+          });
+        } catch (e) {
+          logError("mcp http close", e);
+          resolve();
+        }
+      }),
   };
 }
 

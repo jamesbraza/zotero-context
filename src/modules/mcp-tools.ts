@@ -215,6 +215,9 @@ export function createMcpServer(deps: McpDeps): McpServer {
   );
 
   server.registerTool("get_grab", GET_GRAB_CONFIG, ({ grab_id }) => {
+    // Trail scoping needs no papers() gate here: grab ids exist only for
+    // trail entries, and trail.clear() drops entries and papersSeen
+    // together. Tools taking a paper_id (get_paper, fetch_pdf) must gate
     const grab = trail.get(grab_id);
     if (!grab) return errorResult(`No grab with id ${grab_id}.`);
     const info = deps.paperInfos.get(grab.source.paperId);

@@ -16,6 +16,9 @@ async function onStartup() {
     Zotero.unlockPromise,
     Zotero.uiReadyPromise,
   ]);
+  // Plugin disabled/updated while parked on the awaits: registering now
+  // would leak pref observers and the MCP socket with no unregister path
+  if (!addon.data.alive) return;
 
   initLocale();
   registerPrefsPane();
