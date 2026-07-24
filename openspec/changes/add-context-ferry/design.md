@@ -98,16 +98,29 @@ Floor (guaranteed): each grab immediately writes the clipboard via `ClipboardHel
 
 ### D7: Localhost grab hub — MCP server first, push channel next
 
-The localhost server is architected as a **grab-event hub**: core emits grab/trail events onto an internal bus; consumers subscribe. v0.1 ships one consumer — the MCP server — but the hub interface is the seam for the v0.2 zero-paste browser extension (a WebSocket consumer that pushes grabs into the claude.ai composer). Designing the bus now is a one-line cost; retrofitting it out of an MCP-only server later is a refactor.
+**(Amended 2026-07-24 after design grilling; supersedes the original sketch.)**
 
-MCP consumer: `@modelcontextprotocol/sdk` Streamable HTTP server on a configurable localhost port, started/stopped with the plugin (precedent: cookjohn/zotero-mcp). Tools (not MCP resources — resources are flaky for large content in Claude desktop and require manual attaching):
+The hub is **minimal in v0.1**: a thin subscription point (`onGrab`/`onTrailChange`) on the existing trail — no pub/sub infrastructure, no event replay, no consumer registry. MCP is pull-based and never subscribes; it just holds a trail reference. The v0.2 zero-paste browser extension (WebSocket consumer pushing grabs into the claude.ai composer) will be the first real subscriber and shapes event payloads then, when its requirements are concrete. Speculative bus infra with no v0.1 consumer would be an untested seam.
 
-- `list_grabs` — the grab trail (filters: since, paper)
-- `get_grab` — full payload of one grab (image content returned base64)
-- `get_paper` — metadata + abstract for an item in the trail
-- `fetch_pdf` — attachment content/path for a trail paper, enabling "let's discuss the paper I have open" without manual upload
+**Transport hosting**: the SDK's `StreamableHTTPServerTransport` is Node-coupled (`http.IncomingMessage`/`ServerResponse`) and cannot run in Zotero's Firefox environment. The HTTP layer is Mozilla's **httpd.js**, which ships in Zotero's platform (`chrome://remote/content/server/httpd.sys.mjs`) and owns sockets, parsing, routing, and Host-identity validation; it pairs with the SDK's `McpServer` via a **custom `Transport` implementation** (small interface: `start`/`send`/`close`/`onmessage`) — the SDK owns protocol correctness and tool schemas; we own only the thin glue. **Stateless**: plain JSON response per POST, no SSE, no session IDs (Streamable HTTP permits this; Claude Code and desktop handle it). Mounting on Zotero's own connector server (port 23119) was considered and rejected: shared well-known port, no independent lifecycle control. Default port **23122**, continuing the de facto Zotero block (23119 connector, 23120 zotero-mcp) while skipping 23121, which zotero-filelink-bridge, zotero-notebooklm, and aiops-lmstudio-zotero-plugin already bind.
 
-Advisory only, no "current tab" pointer — the trail is the stable identity. Off by default if port binding fails; clipboard path never depends on the server.
+**Lifecycle**: **off by default** — enable toggle in prefs (consent-to-exist; JetBrains-style posture). Prefs pane shows a live status line (running on port / disabled: port in use / off), port field, and copy-setup buttons. Graceful disable on bind failure; clipboard path never depends on the server.
+
+**Security posture** (researched 2026-07-24 against ecosystem practice; the majority no-auth posture is what earned MCP Inspector CVE-2025-49596, a 9.4 RCE via browser→localhost DNS rebinding, and the SDK's off-by-default rebinding protection is CVE-2025-66414):
+
+- Bind 127.0.0.1 only.
+- Host validation is httpd.js's identity layer (foreign Hosts rejected before handlers run — smoke tests pin this platform behavior so Zotero-upgrade churn is caught in CI, per the 8.2 idiom); Origin validation is ours (httpd has no Origin handling; reject unknown browser Origins, accept origin-less native clients). The SDK's built-in options are Node-coupled and deprecated in favor of external middleware anyway.
+- Bearer token minted on first enablement, persisted in a Zotero pref. Friction is absorbed by the prefs pane rendering paste-ready artifacts: the `claude mcp add --transport http ... --header "Authorization: Bearer <token>"` command and a cross-client `mcpServers` config JSON (Claude desktop, Cursor, and other GUI clients), plus the raw token (recovery for client header bugs). Precedents: MCP Inspector's minted token + prefilled snippet; obsidian-local-rest-api's settings-pane key.
+- Retrieval tools are trail-scoped: the server can only serve papers grabbed this session — a deliberate bounding property, kept even when loosening would be convenient.
+
+**Tools** (not MCP resources — resources are flaky for large content in Claude desktop and require manual attaching):
+
+- `list_grabs` — asymmetric payloads: text grabs inline (full quote + provenance; sentence-scale text is cheap), image grabs as stubs (id, locator, caption, dimensions, bytes). Filters: `paper`, `since` (monotonic trail **watermark**, not timestamp); every response carries the current watermark for delta pulls.
+- `get_grab` — full payload of one grab; images as MCP image content blocks (a grab-sized PNG is tens of KB — fine).
+- `get_paper` — metadata + abstract for an item in the trail.
+- `fetch_pdf(paper_id)` — **path-only** (amended 2026-07-24, simplification pass): returns the attachment's local file path + size. A base64 mode was designed (grill Q5) then cut: high-entropy base64 tokenizes at ~1.4 chars/token (measured with tiktoken cl100k/o200k), so even a 1MB PDF is ~1M tokens in a tool result — beyond any client's ingestible size, making the mode unverifiable speculation. Clients with filesystem access (Claude Code) read the path; Claude desktop gets PDFs via the clipboard paper-intro flow (S3). This also decouples MCP from the rendering-profile pref (6.2), which stays clipboard-scoped.
+
+Advisory only, no "current tab" pointer — the trail is the stable identity. Primary v0.1 clients: **Claude Code** (first-class: path-based PDF reads, watermark delta loop) and Claude desktop. claude.ai cannot reach localhost MCP at all — it stays clipboard-only until the v0.2 extension.
 
 ### D8: Grab mode activation
 
@@ -137,6 +150,6 @@ Greenfield feature on a scaffold repo; no migration. Ship order inside v0.1: spi
 - S1: does an HTML clipboard flavor with embedded images paste into claude.ai as text + attached images?
 - S2: exact working internals paths on current Zotero 7 (chars via `getPageData`, outline, page canvas access) — verify in a throwaway build first.
 - S3: does `addFile(pdf)` + paste attach the PDF in claude.ai (per platform)?
-- Default hotkey choice and default MCP port (pick unregistered, document).
-- Whether `fetch_pdf` returns a filesystem path (Claude Code-friendly) or base64 content (desktop-friendly) — likely both, profile-dependent.
+- ~~Default hotkey choice and default MCP port~~ — resolved: hotkeys shipped fixed (binding pref is backlog 10.2); MCP port defaults to 23122 (D7, amended; 23121 is taken by existing AI-bridge plugins).
+- ~~Whether `fetch_pdf` returns a filesystem path or base64 content~~ — resolved: `mode` tool parameter, `path` default, capped base64 (D7, amended); not profile-dependent.
 - Element-picking (roadmap): docling-class local Python sidecar (plugin-managed process) vs. small ONNX layout model in-process (e.g. DocLayout-YOLO export). Constraint either way: local-only, small, optional, two-click box as fallback. Decide when that feature is scheduled; v0.1 only needs the overlay/hit-test seam to accept a second hit-test source, which the sentence-rect design already provides.

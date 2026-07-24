@@ -9,6 +9,44 @@
     data-l10n-id="pref-enable"
   />
 </groupbox>
+<groupbox>
+  <label><html:h2 data-l10n-id="pref-mcp-title"></html:h2></label>
+  <description data-l10n-id="pref-mcp-description"></description>
+  <checkbox
+    id="zotero-prefpane-__addonRef__-mcp-enabled"
+    preference="mcpEnabled"
+    data-l10n-id="pref-mcp-enable"
+  />
+  <hbox align="center">
+    <label data-l10n-id="pref-mcp-port"></label>
+    <html:input
+      type="number"
+      id="zotero-prefpane-__addonRef__-mcp-port"
+      preference="mcpPort"
+      min="1024"
+      max="65535"
+    />
+  </hbox>
+  <hbox align="center">
+    <label data-l10n-id="pref-mcp-status"></label>
+    <label id="zotero-prefpane-__addonRef__-mcp-status-value"></label>
+  </hbox>
+  <!-- Wired in preferences.js through the guarded plugin-api lookup -->
+  <hbox>
+    <button
+      id="zotero-prefpane-__addonRef__-mcp-copy-claude-code"
+      data-l10n-id="pref-mcp-copy-claude-code"
+    />
+    <button
+      id="zotero-prefpane-__addonRef__-mcp-copy-config"
+      data-l10n-id="pref-mcp-copy-config"
+    />
+    <button
+      id="zotero-prefpane-__addonRef__-mcp-copy-token"
+      data-l10n-id="pref-mcp-copy-token"
+    />
+  </hbox>
+</groupbox>
 <vbox>
   <html:label
     data-l10n-id="pref-help"

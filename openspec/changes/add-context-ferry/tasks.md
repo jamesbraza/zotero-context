@@ -49,16 +49,19 @@
 
 ## 7. MCP server
 
-- [ ] 7.1 Grab-event hub: internal event bus core emits grab/trail events onto, with a consumer interface (MCP now, WebSocket push in v0.2)
-- [ ] 7.2 In-process Streamable HTTP MCP server lifecycle as the first hub consumer: start on plugin load, configurable port, graceful disable on bind failure, clean shutdown
-- [ ] 7.3 Tools: `list_grabs`, `get_grab` (base64 images), `get_paper`, `fetch_pdf` (base64 and/or path per profile); trail-based identity, no focused-tab pointer
-- [ ] 7.4 Verify end-to-end with Claude desktop and Claude Code: connect, pull grabs, fetch PDF; write client-setup recipes into README
+- [x] 7.1 Minimal grab hub: thin subscription point (`onGrab`/`onTrailChange`) on the existing trail in core — no pub/sub infra or event replay (v0.2's WebSocket consumer shapes event payloads when it arrives); MCP holds a trail reference and does not subscribe
+- [x] 7.2 Server lifecycle (off by default): platform httpd.js HTTP layer + SDK `McpServer` via a custom `Transport` (stateless JSON-per-POST, no SSE); add `@modelcontextprotocol/sdk` dependency; 127.0.0.1 bind and Host validation via httpd.js (smoke-tested), Origin validation ours, default port 23122, bearer token minted on first enablement into a Zotero pref; prefs pane with enable toggle, port field, live status line, and copy-ready setup artifacts (`claude mcp add` command + cross-client `mcpServers` JSON + raw token); graceful disable on bind failure, clean shutdown
+- [x] 7.3 Tools: `list_grabs` (asymmetric: text inline with provenance, image stubs; `paper` + `since`-watermark filters, watermark in every response), `get_grab` (images as MCP image content blocks), `get_paper`, `fetch_pdf(paper_id)` returning local path + size (base64 mode cut in simplification pass — see design D7); trail-scoped identity, no focused-tab pointer; unit tests for auth/origin rejection, watermark filtering incl. across-clear monotonicity, stub/inline split, error-id echo
+- [ ] 7.4 Verify end-to-end with Claude Code (primary) and Claude desktop: enable server, connect via minted-token snippet, pull grabs, fetch PDF by path, exercise the watermark delta loop; port-conflict graceful-disable check
 
 ## 8. Quality and release
 
 - [x] 8.0 Code-review rounds (four-perspective review + Copilot ×2): bug fixes, the degrade+log
       error contract, dead-subsystem cleanup, and four spec clauses amended to shipped v0.1
-      behavior — details in branch history
+      behavior — details in branch history. MCP round (2026-07-24): 10 findings fixed
+      (monotonic watermark, token-mint crash path, standalone-PDF guard, guarded prefs-pane
+      actions, JSON-RPC id echo, timer hygiene) plus a perf/simplification pass (fetch_pdf
+      base64 mode cut)
 - [x] 8.1 Unit tests for core (test/core.test.ts): trail watermarks/first-per-paper, provenance
       formats, bundle ordering, sentence alignment incl. the balanced ligature/hyphen drift
       regression, snap-target hit-testing/range joins, caption-strip wrapping, and segment-cache
@@ -73,8 +76,12 @@
 
 - [x] 9.1 Populate README.md: pitch, install, usage guide + hotkey table, provenance examples,
       grab-button and caption-strip SVG figures (real screenshots can replace the SVGs later)
-- [ ] 9.2 README: MCP client setup recipes (Claude desktop config JSON, Claude Code `claude mcp add`),
-      written as part of task 7.4 verification
+- [ ] 9.2 README: expanded "MCP server" section written from verified 7.4 steps — purpose/pull-model
+      prose, mermaid architecture flowchart (both delivery paths meeting at the trail) and pull-loop
+      sequence diagram, two-step setup recipes (enable in prefs, then Claude Code `claude mcp add` /
+      cross-client `mcpServers` config JSON), token recovery, port-conflict troubleshooting via the status line,
+      security posture as deliberate properties, claude.ai localhost limitation, Windows-Zotero +
+      WSL-Claude-Code path caveat
 - [x] 9.3 README: known limitations and roadmap pointers (element-picking deferred, scans use
       line-level snap, browser-extension sibling planned; link openspec change for details)
 - [x] 9.4 CONTRIBUTING.md: dev-loop notes (Linux Zotero under WSLg, `.env` setup, Windows XPI

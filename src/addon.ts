@@ -1,5 +1,6 @@
 import { config } from "../package.json";
 import hooks from "./hooks";
+import type { mcpPrefsApi } from "./modules/mcp-server";
 import { createZToolkit } from "./utils/ztoolkit";
 
 class Addon {
@@ -16,8 +17,8 @@ class Addon {
   };
   // Lifecycle hooks
   public hooks: typeof hooks;
-  // APIs
-  public api: object;
+  // APIs (populated on startup; consumed by the prefs pane script)
+  public api: { mcp?: ReturnType<typeof mcpPrefsApi> };
 
   constructor() {
     this.data = {

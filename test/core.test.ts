@@ -247,7 +247,7 @@ describe("core", function () {
   describe("core/trail", function () {
     it("tracks first grab per paper across a multi-paper session", function () {
       const trail = new GrabTrail();
-      const grab = (paperId: string): Omit<Grab, "id"> => ({
+      const grab = (paperId: string): Omit<Grab, "id" | "seq"> => ({
         ts: 1,
         kind: "text",
         text: "t",
@@ -264,7 +264,7 @@ describe("core", function () {
 
     it("supports delta bundles via watermarks and clearing", function () {
       const trail = new GrabTrail();
-      const grab = (): Omit<Grab, "id"> => ({
+      const grab = (): Omit<Grab, "id" | "seq"> => ({
         ts: 1,
         kind: "text",
         text: "t",
@@ -272,13 +272,58 @@ describe("core", function () {
       });
       trail.append(grab());
       trail.append(grab());
-      const watermark = trail.length;
+      const watermark = trail.watermark;
       trail.append(grab());
       assert.lengthOf(trail.listSince(watermark), 1);
       assert.lengthOf(trail.listSince(0), 3);
       trail.clear();
       assert.lengthOf(trail.list(), 0);
       assert.isTrue(trail.append(grab()).isFirstForPaper);
+    });
+
+    it("keeps watermarks monotonic across clear()", function () {
+      const trail = new GrabTrail();
+      const grab = (): Omit<Grab, "id" | "seq"> => ({
+        ts: 1,
+        kind: "text",
+        text: "t",
+        source: { paperId: "a" },
+      });
+      trail.append(grab());
+      trail.append(grab());
+      const held = trail.watermark;
+      trail.clear();
+      trail.append(grab());
+      // A watermark held by a remote consumer must still see post-clear grabs
+      assert.lengthOf(trail.listSince(held), 1);
+      assert.isAbove(trail.watermark, held);
+    });
+
+    it("notifies hub subscribers and survives listener failures", function () {
+      const trail = new GrabTrail();
+      const grab = (): Omit<Grab, "id" | "seq"> => ({
+        ts: 1,
+        kind: "text",
+        text: "t",
+        source: { paperId: "a" },
+      });
+      const seen: string[] = [];
+      let changes = 0;
+      trail.onGrab(() => {
+        throw new Error("bad consumer");
+      });
+      const unsubscribe = trail.onGrab((g) => seen.push(g.id));
+      trail.onTrailChange(() => {
+        changes++;
+      });
+      const first = trail.append(grab()).grab;
+      assert.deepEqual(seen, [first.id]);
+      assert.equal(changes, 1);
+      unsubscribe();
+      trail.append(grab());
+      assert.lengthOf(seen, 1);
+      trail.clear();
+      assert.equal(changes, 3);
     });
   });
 
@@ -336,6 +381,7 @@ describe("core", function () {
       const grabs: Grab[] = [
         {
           id: "g1",
+          seq: 1,
           ts: 1,
           kind: "text",
           text: "first quote",
@@ -343,6 +389,7 @@ describe("core", function () {
         },
         {
           id: "g2",
+          seq: 2,
           ts: 2,
           kind: "image",
           imageDataUrl: "data:image/png;base64,x",
@@ -350,6 +397,7 @@ describe("core", function () {
         },
         {
           id: "g3",
+          seq: 3,
           ts: 3,
           kind: "text",
           text: "later quote",
