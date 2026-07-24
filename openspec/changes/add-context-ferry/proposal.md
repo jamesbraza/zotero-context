@@ -13,14 +13,14 @@ Active readers of paper PDFs constantly interrupt their thinking to ferry contex
 - Stamp every grab with **provenance**: full citation (title, authors, year, page) on the first grab of a session; compact locator ("§4.3.2, p. 16") thereafter; page-only fallback when the PDF has no outline.
 - Maintain an in-memory **grab trail** (append-only session log of grabs across papers/tabs). Grabs are ephemeral — no annotations or other traces are left in the library.
 - Deliver grabs by **push (clipboard)**: each grab is immediately pastable (text, or image via native clipboard formats); include a "copy session bundle" action honoring the invariant _any number of grabs reaches the chat in one action_.
-- Deliver grabs by **pull (MCP)**: an in-process MCP server (Streamable HTTP on a local port) exposing the grab trail and fetch-PDF-by-item tools, so MCP clients can pull the paper and grabs without manual upload.
+- Deliver grabs by **pull (MCP)**: an in-process MCP server (Streamable HTTP on a local port; opt-in, token-authenticated) exposing the grab trail and fetch-PDF-by-item tools, so MCP clients (Claude Code, Claude desktop) can pull the paper and grabs without manual upload.
 - Add a **paper intro** action: one click copies an introduction blurb (citation + abstract + "PDF attached") to start a chat session.
 
 Explicitly out of scope for v0.1: element-picking (click a figure and have it auto-bounded), persistent grabs-as-annotations, writing AI answers back into Zotero, and the browser-extension sibling (kept viable by keeping core logic viewer-agnostic).
 
 Committed roadmap beyond v0.1 (v0.1 must not foreclose these):
 
-- **v0.2 — zero-paste transport**: a companion browser extension that receives grab events from the plugin's localhost hub (WebSocket) and injects them directly into the claude.ai composer — click in Zotero, grab appears in the chat input. The v0.1 localhost server is therefore designed as a _grab-event hub_ with MCP as its first consumer, not as an MCP-only server.
+- **v0.2 — zero-paste transport**: a companion browser extension that receives grab events from the plugin's localhost hub (WebSocket) and injects them directly into the claude.ai composer — click in Zotero, grab appears in the chat input. To keep that possible, v0.1's trail already lets consumers subscribe to new grabs — a small hook, not a full event system — so the extension can be added later without restructuring an MCP-only server.
 - **Later — element-picking** via small, local-only document-layout models (docling-class sidecar or an ONNX model in-process); never remote calls, never large models, always optional with two-click box as the fallback.
 - **Ambient goal — the bundle as a standard**: keep the viewer-agnostic core publishable as a standalone package and the grab-bundle/provenance format + MCP tool contract documented, so other readers and chat clients can adopt them. Not a primary goal.
 
