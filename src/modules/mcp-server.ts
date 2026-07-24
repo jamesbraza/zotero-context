@@ -1,36 +1,22 @@
 /**
- * MCP server lifecycle (spec: mcp-delivery; design D7).
+ * MCP server lifecycle — the eager control layer (spec: mcp-delivery;
+ * design D7). Off by default; enabled via prefs.
  *
- * Off by default; enabled via prefs. Stateless Streamable HTTP: each POST
- * carries one JSON-RPC message and receives one JSON response — no SSE, no
- * session ids. A fresh SDK `McpServer` is built per request and bridged to
- * the HTTP layer through a single-exchange Transport, so the SDK owns
- * protocol correctness while the adapter owns the socket.
- *
- * Security posture (D7): loopback bind and Host validation come from
- * httpd.js — smoke tests pin that platform behavior; this module adds
- * Origin validation and a bearer token minted on first enablement. The
- * prefs pane renders copy-ready client setup from `mcpPrefsApi`.
+ * This module must stay free of MCP SDK (and zod) imports: those live in
+ * the lazily-loaded handler bundle (src/mcp-handler.ts), which is the bulk
+ * of the plugin's script payload and is only parsed when the server first
+ * starts. This layer owns the socket lifecycle, the bearer token (minted on
+ * first enablement), and the prefs pane's copy-ready client setup
+ * (`mcpPrefsApi`). Loopback bind and Host validation come from httpd.js —
+ * smoke tests pin that platform behavior; Origin validation and auth live
+ * in the handler bundle.
  */
-import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
-import {
-  ErrorCode,
-  isJSONRPCRequest,
-  JSONRPCMessageSchema,
-  type JSONRPCMessage,
-  type JSONRPCRequest,
-} from "@modelcontextprotocol/sdk/types.js";
-import {
-  startHttpServer,
-  type HttpRequest,
-  type HttpResponse,
-  type HttpServerHandle,
-} from "../adapter/http-server";
+import { startHttpServer, type HttpServerHandle } from "../adapter/http-server";
 import { logError } from "../utils/log";
 import { getPref, setPref } from "../utils/prefs";
-import { withTimeout } from "../utils/timeout";
 import { copyText } from "./clipboard";
-import { createMcpServer } from "./mcp-tools";
+import { fieldText, itemForPaperId, paperInfoMap, trail } from "./grab-session";
+import type { McpDeps, McpRequestHandler } from "./mcp-tools";
 import { guard, notify } from "./notify";
 
 /** Fallback when the mcpPort pref is out of range; the pref's default
@@ -40,8 +26,6 @@ import { guard, notify } from "./notify";
  * aiops-lmstudio-zotero-plugin (and used as clautero's proxy sentinel). */
 const DEFAULT_PORT = 23122;
 const MCP_PATH = "/mcp";
-/** A hung tool call must not hold the HTTP exchange open forever. */
-const RESPONSE_TIMEOUT_MS = 30_000;
 
 function configuredPort(): number {
   const port = getPref("mcpPort");
@@ -92,6 +76,73 @@ function getMcpStatus(): McpStatus {
   return { state: "off", port: configuredPort() };
 }
 
+/** Web globals the MCP SDK expects that Zotero's plugin sandbox realm lacks
+ * (verified empirically: `console` — Ajv reads it at construction — and
+ * `AbortController`; the rest are the SDK's plausible dependencies, borrowed
+ * defensively). All come from ONE realm (the main window) so the SDK's
+ * cross-checks between them stay consistent. */
+const BORROWED_GLOBALS = [
+  "console",
+  "AbortController",
+  "AbortSignal",
+  "TextEncoder",
+  "TextDecoder",
+  "URL",
+  "URLSearchParams",
+  "crypto",
+] as const;
+
+/**
+ * The scope object the handler bundle is loaded with. It mirrors
+ * bootstrap.js's ctx pattern: names on this object (plus the realm global)
+ * are what the bundle can see — `addon` lets it publish its API, and the
+ * borrowed web globals fill the sandbox's gaps. `console` gets an inert
+ * fallback so a windowless startup cannot break the server.
+ */
+function handlerScope(): Record<string, unknown> {
+  // Hidden window first: it lives for the whole app session, so the SDK's
+  // captured references cannot become dead objects when the main window
+  // closes (macOS keeps Zotero running windowless)
+  let hidden: unknown;
+  try {
+    hidden = Services.appShell.hiddenDOMWindow;
+  } catch (e) {
+    logError("mcp handler scope (hidden window)", e);
+  }
+  const win = (hidden ?? Zotero.getMainWindow()) as unknown as
+    Record<string, unknown> | undefined;
+  const scope: Record<string, unknown> = { addon };
+  for (const name of BORROWED_GLOBALS) {
+    const value =
+      (globalThis as unknown as Record<string, unknown>)[name] ?? win?.[name];
+    if (value !== undefined) scope[name] = value;
+  }
+  scope.console ??= { log() {}, warn() {}, error() {} };
+  return scope;
+}
+
+/**
+ * Load the SDK-bearing handler bundle on demand — zod + MCP SDK are the
+ * bulk of the plugin's script payload, and MCP-off users (the default)
+ * never parse them. loadSubScript runs the bundle in this same plugin
+ * sandbox, where it publishes `addon.data.mcpHandler`; loading is
+ * effectively once (the publish is idempotent and checked first).
+ */
+function ensureHandler(): McpRequestHandler | null {
+  if (!addon.data.mcpHandler) {
+    try {
+      Services.scriptloader.loadSubScript(
+        `${rootURI}content/scripts/${addon.data.config.addonRef}-mcp.js`,
+        handlerScope(),
+      );
+    } catch (e) {
+      logError("mcp handler load", e);
+      return null;
+    }
+  }
+  return addon.data.mcpHandler?.handleRequest ?? null;
+}
+
 function start(): void {
   if (handle) return;
   const port = configuredPort();
@@ -99,8 +150,24 @@ function start(): void {
     // Pre-mint so the prefs pane's copy buttons work before the first
     // request; a mint failure takes the graceful-disable path below
     token();
+    const handleRequest = ensureHandler();
+    if (!handleRequest) {
+      // Graceful disable, same contract as a failed bind
+      lastError = "Could not load the MCP request handler — see debug log";
+      notify("MCP server disabled: handler failed to load", false);
+      return;
+    }
+    // Session state crosses the bundle boundary here, as values: the lazy
+    // bundle carries its own (empty) copies of grab-session's singletons,
+    // so the handler must be fed THIS bundle's instances (see McpDeps)
+    const deps: McpDeps = {
+      trail,
+      paperInfos: paperInfoMap(),
+      itemForPaperId,
+      fieldText,
+    };
     handle = startHttpServer(port, MCP_PATH, (req) =>
-      handleRequest(req, port, token()),
+      handleRequest(deps, req, port, token()),
     );
     lastError = null;
   } catch (e) {
@@ -194,149 +261,4 @@ export function mcpPrefsApi() {
       void copied("Token", token);
     },
   };
-}
-
-// --- HTTP request handling ------------------------------------------------
-
-const emptyJson = (status: number): HttpResponse => ({ status, body: "" });
-
-function rpcError(
-  status: number,
-  code: number,
-  message: string,
-  id: string | number | null = null,
-): HttpResponse {
-  return {
-    status,
-    body: JSON.stringify({ jsonrpc: "2.0", error: { code, message }, id }),
-  };
-}
-
-/** Best-effort request id from an unvalidated JSON-RPC body. */
-function rawId(raw: unknown): string | number | null {
-  if (typeof raw === "object" && raw !== null && "id" in raw) {
-    const id = raw.id;
-    if (typeof id === "string" || typeof id === "number") return id;
-  }
-  return null;
-}
-
-/** Exported for tests; production traffic reaches it only via `start`.
- * Routing and Host validation happen upstream in httpd.js (foreign Hosts
- * never reach this — smoke tests pin that platform behavior); this gate
- * owns Origin (httpd has no Origin handling) and auth. */
-export async function handleRequest(
-  req: HttpRequest,
-  port: number,
-  auth: string,
-): Promise<HttpResponse> {
-  // Origin validation first: defeats browser-based requests regardless of
-  // auth (origin-less native clients pass)
-  const origin = req.headers.get("origin");
-  if (
-    origin !== undefined &&
-    origin !== `http://127.0.0.1:${port}` &&
-    origin !== `http://localhost:${port}`
-  ) {
-    return emptyJson(403);
-  }
-  if (req.method !== "POST") {
-    // Stateless: no SSE stream to GET, no session to DELETE
-    return { status: 405, body: "", extraHeaders: { Allow: "POST" } };
-  }
-  if (req.headers.get("authorization") !== `Bearer ${auth}`) {
-    return {
-      status: 401,
-      body: "",
-      extraHeaders: { "WWW-Authenticate": "Bearer" },
-    };
-  }
-
-  let raw: unknown;
-  try {
-    raw = JSON.parse(req.body);
-  } catch {
-    return rpcError(400, ErrorCode.ParseError, "Parse error");
-  }
-  if (Array.isArray(raw)) {
-    return rpcError(
-      400,
-      ErrorCode.InvalidRequest,
-      "JSON-RPC batching is not supported",
-    );
-  }
-  let message: JSONRPCMessage;
-  try {
-    message = JSONRPCMessageSchema.parse(raw);
-  } catch {
-    return rpcError(
-      400,
-      ErrorCode.InvalidRequest,
-      "Invalid JSON-RPC message",
-      rawId(raw),
-    );
-  }
-  if (!isJSONRPCRequest(message)) {
-    // Notifications and client responses need no reply in stateless mode
-    return emptyJson(202);
-  }
-  return dispatch(message);
-}
-
-/** Bridges exactly one JSON-RPC exchange between HTTP and the SDK server. */
-class SingleRequestTransport implements Transport {
-  onclose?: () => void;
-  onerror?: (error: Error) => void;
-  onmessage?: (message: JSONRPCMessage) => void;
-  private resolveResponse: ((message: JSONRPCMessage) => void) | undefined;
-  readonly response = new Promise<JSONRPCMessage>((resolve) => {
-    this.resolveResponse = resolve;
-  });
-
-  start(): Promise<void> {
-    return Promise.resolve();
-  }
-
-  send(message: JSONRPCMessage): Promise<void> {
-    // The first server->client message is the response to our one request;
-    // a stateless server sends nothing else worth forwarding
-    this.resolveResponse?.(message);
-    this.resolveResponse = undefined;
-    return Promise.resolve();
-  }
-
-  close(): Promise<void> {
-    this.onclose?.();
-    return Promise.resolve();
-  }
-
-  deliver(message: JSONRPCMessage): void {
-    this.onmessage?.(message);
-  }
-}
-
-async function dispatch(message: JSONRPCRequest): Promise<HttpResponse> {
-  const server = createMcpServer();
-  const transport = new SingleRequestTransport();
-  try {
-    await server.connect(transport);
-    transport.deliver(message);
-    const response = await withTimeout(transport.response, RESPONSE_TIMEOUT_MS);
-    if (!response) {
-      return rpcError(
-        500,
-        ErrorCode.InternalError,
-        "Request timed out",
-        message.id,
-      );
-    }
-    return { status: 200, body: JSON.stringify(response) };
-  } catch (e) {
-    logError("mcp dispatch", e);
-    return rpcError(500, ErrorCode.InternalError, "Internal error", message.id);
-  } finally {
-    server.close().catch((e: unknown) => {
-      logError("mcp server close", e);
-    });
-  }
 }

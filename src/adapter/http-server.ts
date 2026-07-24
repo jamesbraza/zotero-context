@@ -89,6 +89,9 @@ export function startHttpServer(
 /** The only headers the MCP gate reads; skip enumerating the rest. */
 const RELEVANT_HEADERS = ["origin", "authorization"];
 
+/** NetUtil, resolved once on first body read instead of per request. */
+let netUtil: any;
+
 function toRequest(request: any): HttpRequest {
   const headers = new Map<string, string>();
   for (const name of RELEVANT_HEADERS) {
@@ -97,10 +100,10 @@ function toRequest(request: any): HttpRequest {
   const available: number = request.bodyInputStream.available();
   let body = "";
   if (available > 0) {
-    const { NetUtil } = ChromeUtils.importESModule(
+    netUtil ??= ChromeUtils.importESModule(
       "resource://gre/modules/NetUtil.sys.mjs",
-    );
-    body = NetUtil.readInputStreamToString(request.bodyInputStream, available, {
+    ).NetUtil;
+    body = netUtil.readInputStreamToString(request.bodyInputStream, available, {
       charset: "UTF-8",
     });
   }

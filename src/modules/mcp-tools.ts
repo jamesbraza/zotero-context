@@ -8,14 +8,42 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { version } from "../../package.json";
+import type { HttpRequest, HttpResponse } from "../adapter/http-server";
 import { dataUrlBase64, dataUrlBytes } from "../adapter/reader";
 import {
   formatCaption,
   formatHeader,
   formatTextGrab,
+  type PaperInfo,
 } from "../core/provenance";
+import type { GrabTrail } from "../core/trail";
 import type { Grab } from "../core/types";
-import { fieldText, itemForPaperId, paperInfoMap, trail } from "./grab-session";
+
+/**
+ * Stateful session singletons + item access, injected by the caller. The
+ * lazy handler bundle (src/mcp-handler.ts) bundles its OWN copies of every
+ * module it imports, so grab-session state must cross the bundle boundary
+ * as values from the main bundle — a static import here would silently
+ * serve a second, always-empty trail.
+ */
+export interface McpDeps {
+  trail: GrabTrail;
+  /** Live citation-metadata map by paperId (grab-session's instance). */
+  paperInfos: ReadonlyMap<string, PaperInfo>;
+  itemForPaperId: (paperId: string) => Zotero.Item | null;
+  fieldText: (
+    item: Zotero.Item,
+    field: Parameters<Zotero.Item["getField"]>[0],
+  ) => string;
+}
+
+/** Contract between the lazy handler bundle and the eager server shell. */
+export type McpRequestHandler = (
+  deps: McpDeps,
+  req: HttpRequest,
+  port: number,
+  auth: string,
+) => Promise<HttpResponse>;
 
 declare const IOUtils: {
   stat: (path: string) => Promise<{ size: number }>;
@@ -68,15 +96,15 @@ export function pngDimensions(
   return { width: be32(16), height: be32(20) };
 }
 
-function paperSummary(paperId: string) {
-  const info = paperInfoMap().get(paperId);
+function paperSummary(deps: McpDeps, paperId: string) {
+  const info = deps.paperInfos.get(paperId);
   return info
     ? { title: info.title, authors: info.creatorSummary, year: info.year }
     : undefined;
 }
 
 /** Listing entry: text grabs inline in full, image grabs as stubs (D7). */
-function listEntry(grab: Grab) {
+function listEntry(deps: McpDeps, grab: Grab) {
   const base = {
     id: grab.id,
     kind: grab.kind,
@@ -85,7 +113,7 @@ function listEntry(grab: Grab) {
     section: grab.source.section,
   };
   if (grab.kind === "text") return { ...base, text: grab.text };
-  const info = paperInfoMap().get(grab.source.paperId);
+  const info = deps.paperInfos.get(grab.source.paperId);
   return {
     ...base,
     caption: info ? formatCaption(grab.source, false, info) : undefined,
@@ -160,9 +188,11 @@ const FETCH_PDF_CONFIG = {
   inputSchema: { paper_id: z.string() },
 };
 
-/** Build a fully tool-equipped MCP server (one per request — stateless). */
-export function createMcpServer(): McpServer {
+/** Build a fully tool-equipped MCP server (one per request — stateless).
+ * State comes from `deps` (see McpDeps): never import grab-session here. */
+export function createMcpServer(deps: McpDeps): McpServer {
   const server = new McpServer({ name: "zotero-context", version });
+  const { trail } = deps;
 
   server.registerTool(
     "list_grabs",
@@ -174,12 +204,12 @@ export function createMcpServer(): McpServer {
       }
       const papers: Record<string, unknown> = {};
       for (const g of grabs) {
-        papers[g.source.paperId] ??= paperSummary(g.source.paperId);
+        papers[g.source.paperId] ??= paperSummary(deps, g.source.paperId);
       }
       return jsonResult({
         watermark: trail.watermark,
         papers,
-        grabs: grabs.map(listEntry),
+        grabs: grabs.map((g) => listEntry(deps, g)),
       });
     },
   );
@@ -187,7 +217,7 @@ export function createMcpServer(): McpServer {
   server.registerTool("get_grab", GET_GRAB_CONFIG, ({ grab_id }) => {
     const grab = trail.get(grab_id);
     if (!grab) return errorResult(`No grab with id ${grab_id}.`);
-    const info = paperInfoMap().get(grab.source.paperId);
+    const info = deps.paperInfos.get(grab.source.paperId);
     if (grab.kind === "image" && grab.imageDataUrl) {
       const base64 = dataUrlBase64(grab.imageDataUrl);
       if (!base64) return errorResult("Image payload is unreadable.");
@@ -216,21 +246,21 @@ export function createMcpServer(): McpServer {
 
   server.registerTool("get_paper", GET_PAPER_CONFIG, ({ paper_id }) => {
     if (!trail.papers().includes(paper_id)) return notInTrail(paper_id);
-    const item = itemForPaperId(paper_id);
+    const item = deps.itemForPaperId(paper_id);
     if (!item) return errorResult(`Zotero item ${paper_id} not found.`);
     return jsonResult({
       paper_id,
-      ...paperSummary(paper_id),
-      date: fieldText(item, "date"),
-      abstract: fieldText(item, "abstractNote"),
-      doi: fieldText(item, "DOI"),
-      url: fieldText(item, "url"),
+      ...paperSummary(deps, paper_id),
+      date: deps.fieldText(item, "date"),
+      abstract: deps.fieldText(item, "abstractNote"),
+      doi: deps.fieldText(item, "DOI"),
+      url: deps.fieldText(item, "url"),
     });
   });
 
   server.registerTool("fetch_pdf", FETCH_PDF_CONFIG, async ({ paper_id }) => {
     if (!trail.papers().includes(paper_id)) return notInTrail(paper_id);
-    const item = itemForPaperId(paper_id);
+    const item = deps.itemForPaperId(paper_id);
     if (!item) return errorResult(`Zotero item ${paper_id} not found.`);
     const pdf = await bestPdfPath(item);
     if ("error" in pdf) return errorResult(pdf.error);
