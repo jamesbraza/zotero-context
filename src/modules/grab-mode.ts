@@ -134,8 +134,9 @@ export function registerGrabMode() {
       const button = doc.createElement("button");
       button.className = "toolbar-button zotero-context-grab-button";
       button.title =
-        "Grab mode (Zotero Context): click text to copy it, " +
-        "or click two corners to copy a region (Ctrl+Alt+G)";
+        "Grab mode (Zotero Context): click text to copy it (shift-click " +
+        "extends), or click two corners to copy a region; Esc cancels a " +
+        "pending corner, then exits (Ctrl+Alt+G toggles)";
       button.textContent = "⌖";
       button.style.fontSize = "16px";
       button.addEventListener("click", () => {
@@ -220,7 +221,7 @@ function activate(reader: ReaderInstance, state: GrabState) {
         segmentApiAbsent(reader),
       );
       if (segments) {
-        notify("Sentence snap ready — hover text and click");
+        // Snap readiness needs no announcement — the hover glow shows it.
         // First hover must not wait on target computation: precompute the
         // visible page ±1 (the rest fill lazily per hover)
         const visible = getVisiblePageIndex(reader);
@@ -321,8 +322,8 @@ function activate(reader: ReaderInstance, state: GrabState) {
   // Drop any pre-existing selection so it can't anchor shift-clicks
   doc.defaultView?.getSelection()?.removeAllRanges();
   clearReaderSelection(reader);
-
-  notify("Grab mode ON — click text, or click two corners (Esc to exit)");
+  // No activation toast: the crosshair cursor and tinted toolbar button
+  // signal the mode; usage hints live in the button tooltip
 }
 
 function deactivate(reader: ReaderInstance, state: GrabState) {
