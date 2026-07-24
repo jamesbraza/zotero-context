@@ -70,7 +70,7 @@ function _getString(
   const { branch, args } = options;
   const pattern = addon.data.locale?.current.formatMessagesSync([
     { id: localStringWithPrefix, args: args ?? null },
-  ])?.[0];
+  ])[0];
 
   if (!pattern) {
     return localStringWithPrefix;

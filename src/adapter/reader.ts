@@ -238,7 +238,7 @@ export async function getOutlineEntries(
     if (typeof pdfDoc?.getOutline2 === "function") {
       const entries: OutlineEntry[] = [];
       // Walks the getOutline2 shape: {title, items, location: {position}}
-      const walk = (nodes: any[]) => {
+      const walk = (nodes: any[] | undefined) => {
         for (const node of nodes ?? []) {
           const position = node?.location?.position;
           if (Number.isInteger(position?.pageIndex)) {
@@ -339,7 +339,7 @@ export function getPageAt(
   try {
     const doc = getReaderDocument(reader);
     const el = doc?.elementFromPoint(clientX, clientY);
-    const pageEl = el?.closest?.(".page");
+    const pageEl = el?.closest(".page");
     if (!pageEl) return null;
     const num = Number(pageEl.getAttribute("data-page-number"));
     if (!Number.isFinite(num) || num < 1) return null;

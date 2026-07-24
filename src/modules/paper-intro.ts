@@ -29,9 +29,10 @@ function getFocusedTopItem(): Zotero.Item | null {
   const reader = Zotero.Reader.getByTabID(tabs.selectedID);
   if (reader?.itemID) {
     const attachment = Zotero.Items.get(reader.itemID);
-    return attachment?.parentItem ?? attachment ?? null;
+    if (attachment) return attachment.parentItem ?? attachment;
+    return null;
   }
-  const selected = Zotero.getActiveZoteroPane()?.getSelectedItems()?.[0];
+  const selected = Zotero.getActiveZoteroPane()?.getSelectedItems()[0];
   if (!selected) return null;
   return selected.isAttachment() ? (selected.parentItem ?? selected) : selected;
 }
@@ -59,7 +60,7 @@ async function copyPaperIntro() {
 
   const attachment = top.isAttachment()
     ? top
-    : ((await top.getBestAttachment()) ?? null);
+    : (await top.getBestAttachment()) || null;
   const path = attachment ? await attachment.getFilePathAsync() : null;
   if (!path) {
     // No PDF file — still useful: copy the intro text directly
