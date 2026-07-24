@@ -33,6 +33,8 @@ export default defineConfig({
           __env__: `"${process.env.NODE_ENV}"`,
         },
         bundle: true,
+        // Users parse this at every Zotero startup; keep dev builds readable
+        minify: process.env.NODE_ENV === "production",
         target: "firefox115",
         outfile: `.scaffold/build/addon/content/scripts/${pkg.config.addonRef}.js`,
       },
@@ -44,6 +46,7 @@ export default defineConfig({
           __env__: `"${process.env.NODE_ENV}"`,
         },
         bundle: true,
+        minify: process.env.NODE_ENV === "production",
         target: "firefox115",
         outfile: `.scaffold/build/addon/content/scripts/${pkg.config.addonRef}-mcp.js`,
       },
