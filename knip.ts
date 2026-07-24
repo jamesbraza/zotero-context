@@ -2,8 +2,9 @@ import type { KnipConfig } from "knip";
 
 const config: KnipConfig = {
   entry: [
-    // Plugin bundle root (esbuild entry in zotero-plugin.config.ts)
+    // Plugin bundle roots (esbuild entries in zotero-plugin.config.ts)
     "src/index.ts",
+    "src/mcp-handler.ts",
     // Bundled and run inside Zotero by zotero-plugin-scaffold
     "test/**/*.test.ts",
     "zotero-plugin.config.ts",

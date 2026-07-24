@@ -82,6 +82,38 @@ export function getPageChars(
 }
 
 /**
+ * Resolves once the reader's primary view is fully initialized: pdf document
+ * loaded, page count known, initial navigation done. Verified on the 9.0.6
+ * bundle and the Zotero 10 line: the view resolves `initializedPromise` at
+ * the end of its `_init()`, and Zotero core itself awaits this same promise
+ * (so it breaking would break Zotero first). Returns false when the chain is
+ * absent (version churn) — callers degrade to on-activation warming.
+ *
+ * NEVER await `_internalReader.initializedPromise` instead: that promise is
+ * created but never resolved (zotero/reader#171), so awaiting it hangs
+ * forever.
+ */
+export async function waitForViewInitialized(
+  reader: ReaderInstance,
+): Promise<boolean> {
+  try {
+    await reader._initPromise;
+    const initialized: unknown = getView(reader)?.initializedPromise;
+    if (
+      typeof (initialized as { then?: unknown } | undefined)?.then !==
+      "function"
+    ) {
+      return false;
+    }
+    await initialized;
+    return true;
+  } catch (e) {
+    logError("waitForViewInitialized", e);
+    return false;
+  }
+}
+
+/**
  * Whether the segment machinery is *permanently* unavailable: the reader's
  * view exists but lacks the Read Aloud API (Zotero version churn). A missing
  * view is NOT absence — the view only appears ~1s after Reader.open resolves
@@ -374,6 +406,35 @@ export function getPageLabel(
 ): string {
   const label = getView(reader)?._pageLabels?.[pageIndex];
   return typeof label === "string" && label ? label : String(pageIndex + 1);
+}
+
+/** Zero-based index of the page currently shown in the viewer, or null when
+ * the viewer is not up yet (callers skip their page-scoped warm work). */
+export function getVisiblePageIndex(reader: ReaderInstance): number | null {
+  try {
+    const view = getView(reader);
+    const win = view?._iframeWindow;
+    const app = (win?.wrappedJSObject ?? win)?.PDFViewerApplication;
+    const num: unknown = app?.pdfViewer?.currentPageNumber;
+    return typeof num === "number" && Number.isInteger(num) && num >= 1
+      ? num - 1
+      : null;
+  } catch (e) {
+    logError("getVisiblePageIndex", e);
+    return null;
+  }
+}
+
+/** Readers currently open, from the private registry (empty array on shape
+ * change — callers just skip their sweep). */
+export function getOpenReaders(): ReaderInstance[] {
+  try {
+    const readers: unknown = (Zotero.Reader as any)._readers;
+    return Array.isArray(readers) ? [...(readers as ReaderInstance[])] : [];
+  } catch (e) {
+    logError("getOpenReaders", e);
+    return [];
+  }
 }
 
 /**

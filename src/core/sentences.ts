@@ -174,8 +174,14 @@ interface SentenceSpan {
   start: number;
 }
 
+/** Shared segmenter: construction is the expensive part, and `segment()`
+ * holds no state across calls. Lazy so importing this module stays free. */
+let sentenceSegmenter: Intl.Segmenter | undefined;
+
 function splitSentences(text: string): SentenceSpan[] {
-  const segmenter = new Intl.Segmenter("en", { granularity: "sentence" });
+  const segmenter = (sentenceSegmenter ??= new Intl.Segmenter("en", {
+    granularity: "sentence",
+  }));
   const result: SentenceSpan[] = [];
   for (const item of segmenter.segment(text)) {
     if (item.segment.trim()) {

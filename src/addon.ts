@@ -1,6 +1,7 @@
 import { config } from "../package.json";
 import hooks from "./hooks";
 import type { mcpPrefsApi } from "./modules/mcp-server";
+import type { McpRequestHandler } from "./modules/mcp-tools";
 import { createZToolkit } from "./utils/ztoolkit";
 
 class Addon {
@@ -14,6 +15,9 @@ class Addon {
     locale?: {
       current: Localization;
     };
+    /** SDK-bearing request handler, published by the lazily-loaded MCP
+     * bundle (src/mcp-handler.ts) on first server start. */
+    mcpHandler?: { handleRequest: McpRequestHandler };
   };
   // Lifecycle hooks
   public hooks: typeof hooks;

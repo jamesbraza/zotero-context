@@ -1,7 +1,13 @@
 import { assert } from "chai";
 import { startHttpServer } from "../src/adapter/http-server";
-import { trail } from "../src/modules/grab-session";
-import { handleRequest } from "../src/modules/mcp-server";
+import { handleRequest } from "../src/mcp-handler";
+import {
+  fieldText,
+  itemForPaperId,
+  paperInfoMap,
+  trail,
+} from "../src/modules/grab-session";
+import type { McpDeps } from "../src/modules/mcp-tools";
 
 declare const Components: any;
 
@@ -100,8 +106,14 @@ describe("mcp-smoke", function () {
   let close: (() => void) | undefined;
 
   before(function () {
+    const deps: McpDeps = {
+      trail,
+      paperInfos: paperInfoMap(),
+      itemForPaperId,
+      fieldText,
+    };
     close = startHttpServer(PORT, "/mcp", (req) =>
-      handleRequest(req, PORT, TOKEN),
+      handleRequest(deps, req, PORT, TOKEN),
     ).close;
   });
 
@@ -147,5 +159,39 @@ describe("mcp-smoke", function () {
     // The converter-stream write path must not mangle non-ASCII
     assert.include(response, "§4.3");
     assert.include(response, "émigré");
+  });
+
+  it("pref enablement lazy-loads the handler bundle and serves requests", async function () {
+    this.timeout(15_000);
+    // Drive the RUNNING plugin (not the test bundle's imports): setting the
+    // pref fires its observer, which must loadSubScript the handler bundle
+    // and bind the socket — the end-to-end lazy path users take
+    const runningAddon = (Zotero as any).ZoteroContext;
+    const prefix = runningAddon.data.config.prefsPrefix as string;
+    const LAZY_PORT = 23988;
+    Zotero.Prefs.set(`${prefix}.mcpPort`, LAZY_PORT, true);
+    Zotero.Prefs.set(`${prefix}.mcpToken`, TOKEN, true);
+    try {
+      Zotero.Prefs.set(`${prefix}.mcpEnabled`, true, true);
+      // Pref observers may dispatch asynchronously — give the lazy load a
+      // moment before treating the missing publish as a failure
+      const deadline = Date.now() + 5_000;
+      while (!runningAddon.data.mcpHandler && Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+      assert.ok(
+        runningAddon.data.mcpHandler,
+        "lazy bundle published its handler into the plugin sandbox",
+      );
+      const response = await rawRequest(
+        LAZY_PORT,
+        post(`127.0.0.1:${LAZY_PORT}`, LIST_GRABS, TOKEN),
+      );
+      assert.match(response, /^HTTP\/1\.1 200/);
+    } finally {
+      Zotero.Prefs.set(`${prefix}.mcpEnabled`, false, true);
+      Zotero.Prefs.clear(`${prefix}.mcpPort`, true);
+      Zotero.Prefs.clear(`${prefix}.mcpToken`, true);
+    }
   });
 });

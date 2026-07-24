@@ -1,11 +1,28 @@
 import { assert } from "chai";
 import type { HttpRequest } from "../src/adapter/http-server";
-import { trail } from "../src/modules/grab-session";
-import { handleRequest } from "../src/modules/mcp-server";
-import { pngDimensions } from "../src/modules/mcp-tools";
+import {
+  fieldText,
+  itemForPaperId,
+  paperInfoMap,
+  trail,
+} from "../src/modules/grab-session";
+import { handleRequest as handleMcpRequest } from "../src/mcp-handler";
+import { pngDimensions, type McpDeps } from "../src/modules/mcp-tools";
 
 const PORT = 23122;
 const TOKEN = "0123456789abcdef0123456789abcdef01234567";
+
+/** Deps from this test bundle's own module graph — the same `trail` the
+ * tests seed below, mirroring how the eager control layer feeds the lazy
+ * handler its main-bundle instances. */
+const DEPS: McpDeps = {
+  trail,
+  paperInfos: paperInfoMap(),
+  itemForPaperId,
+  fieldText,
+};
+const handleRequest = (req: HttpRequest, port: number, auth: string) =>
+  handleMcpRequest(DEPS, req, port, auth);
 
 // 1x1 transparent PNG
 const TINY_PNG =

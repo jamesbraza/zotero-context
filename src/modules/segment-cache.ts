@@ -2,6 +2,7 @@ import {
   getPageChars,
   getSegments,
   segmentApiAbsent,
+  waitForViewInitialized,
   type ReaderSegment,
 } from "../adapter/reader";
 import { sentenceTargetsForSegment } from "../core/sentences";
@@ -53,6 +54,50 @@ export function getSegmentsCached(
   return p;
 }
 
+/** Injectable view-readiness gate (adapter waitForViewInitialized). */
+export type ViewReadiness = (reader: ReaderInstance) => Promise<boolean>;
+
+export interface WarmOptions {
+  source?: SegmentSource;
+  waitForView?: ViewReadiness;
+  /** Fired once when warming actually yielded segments — the hook for
+   * follow-on cache fills (e.g. visible-page target prefetch). */
+  onReady?: () => void;
+}
+
+const warmLoops = new WeakMap<object, Promise<ReaderSegment[] | null>>();
+
+/**
+ * Background segment warm-up for a reader, so activation-time fetches answer
+ * from cache. Promise-driven (no polling): waits for the view to be fully
+ * initialized, then populates the shared segment cache — the same per-reader
+ * promise `getSegmentsCached` serves, so a grab-mode activation racing the
+ * warm-up coalesces onto one fetch. Concurrent calls share one loop; a
+ * settled loop is evicted so a later reader render can warm again (cheap:
+ * view readiness and the segment cache both answer immediately).
+ */
+export function warmSegments(
+  reader: ReaderInstance,
+  opts: WarmOptions = {},
+): Promise<ReaderSegment[] | null> {
+  const existing = warmLoops.get(reader);
+  if (existing) return existing;
+  const loop = (async () => {
+    const ready = await (opts.waitForView ?? waitForViewInitialized)(reader);
+    if (!ready) return null;
+    const segments = await getSegmentsCached(reader, opts.source);
+    if (segments) opts.onReady?.();
+    return segments;
+  })()
+    .catch((e: unknown): null => {
+      logError("warmSegments", e);
+      return null;
+    })
+    .finally(() => warmLoops.delete(reader));
+  warmLoops.set(reader, loop);
+  return loop;
+}
+
 /**
  * textSnapReady state from an activation-time segments fetch. true = snap
  * live. false = permanently unavailable (segment API absent; the hover gate
@@ -69,6 +114,27 @@ export function textSnapStateFrom(
 }
 
 const targetsCache = new WeakMap<object, Map<number, SnapTarget[]>>();
+
+/** Per-page index over a segments array, built once on first use. Keyed by
+ * the array itself (stable: the cached promise pins it per reader), so an
+ * evicted-and-refetched segments array simply gets a fresh index. */
+const pageIndexCache = new WeakMap<object, Map<number, ReaderSegment[]>>();
+
+function segmentsByPage(
+  segments: ReaderSegment[],
+): Map<number, ReaderSegment[]> {
+  let byPage = pageIndexCache.get(segments);
+  if (!byPage) {
+    byPage = new Map();
+    for (const seg of segments) {
+      const list = byPage.get(seg.position.pageIndex);
+      if (list) list.push(seg);
+      else byPage.set(seg.position.pageIndex, [seg]);
+    }
+    pageIndexCache.set(segments, byPage);
+  }
+  return byPage;
+}
 
 /**
  * Sentence snap targets for a page, computed lazily from that page's
@@ -95,8 +161,7 @@ export async function getPageTargets(
 
   const pageChars = getPageChars(reader, pageIndex);
   const targets: SnapTarget[] = [];
-  for (const seg of segments) {
-    if (seg.position.pageIndex !== pageIndex) continue;
+  for (const seg of segmentsByPage(segments).get(pageIndex) ?? []) {
     const slice =
       pageChars && seg.offsetEnd >= seg.offsetStart
         ? pageChars.slice(seg.offsetStart, seg.offsetEnd + 1)
