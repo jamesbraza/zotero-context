@@ -624,6 +624,141 @@ describe("core", function () {
       });
     }
 
+    it("warmSegments: fills the shared cache once the view is ready", async function () {
+      const { warmSegments, getSegmentsCached } = await loadSegmentCache();
+      const reader = fakeReader();
+      let calls = 0;
+      const source = {
+        getSegments: () => {
+          calls++;
+          return Promise.resolve(SEGMENTS);
+        },
+        segmentApiAbsent: () => false,
+      };
+      let ready = 0;
+      const warmed = await warmSegments(reader, {
+        source,
+        waitForView: () => Promise.resolve(true),
+        onReady: () => {
+          ready++;
+        },
+      });
+      assert.equal(warmed, SEGMENTS);
+      assert.equal(ready, 1);
+      // The activation-time fetch answers from the warmed cache
+      assert.equal(await getSegmentsCached(reader, source), SEGMENTS);
+      assert.equal(calls, 1);
+    });
+
+    it("warmSegments: view never ready → no fetch, resolves null", async function () {
+      const { warmSegments } = await loadSegmentCache();
+      let calls = 0;
+      let ready = 0;
+      const warmed = await warmSegments(fakeReader(), {
+        source: {
+          getSegments: () => {
+            calls++;
+            return Promise.resolve(SEGMENTS);
+          },
+          segmentApiAbsent: () => false,
+        },
+        waitForView: () => Promise.resolve(false),
+        onReady: () => {
+          ready++;
+        },
+      });
+      assert.equal(warmed, null);
+      assert.equal(calls, 0);
+      assert.equal(ready, 0);
+    });
+
+    it("warmSegments: API absent → resolves null quietly, null cached", async function () {
+      const { warmSegments, getSegmentsCached } = await loadSegmentCache();
+      const reader = fakeReader();
+      let calls = 0;
+      let ready = 0;
+      const source = {
+        getSegments: () => {
+          calls++;
+          return Promise.resolve(null);
+        },
+        segmentApiAbsent: () => true,
+      };
+      const warmed = await warmSegments(reader, {
+        source,
+        waitForView: () => Promise.resolve(true),
+        onReady: () => {
+          ready++;
+        },
+      });
+      assert.equal(warmed, null);
+      assert.equal(ready, 0);
+      assert.equal(await getSegmentsCached(reader, source), null);
+      assert.equal(calls, 1);
+    });
+
+    it("warmSegments: concurrent calls share one loop; settled loops evict", async function () {
+      const { warmSegments } = await loadSegmentCache();
+      const reader = fakeReader();
+      let fetches = 0;
+      const source = {
+        getSegments: () => {
+          fetches++;
+          return Promise.resolve(SEGMENTS);
+        },
+        segmentApiAbsent: () => false,
+      };
+      let release!: (ready: boolean) => void;
+      const gate = new Promise<boolean>((resolve) => {
+        release = resolve;
+      });
+      let gateCalls = 0;
+      const waitForView = () => {
+        gateCalls++;
+        return gate;
+      };
+      const first = warmSegments(reader, { source, waitForView });
+      const second = warmSegments(reader, { source, waitForView });
+      assert.strictEqual(first, second); // deduped while in flight
+      assert.equal(gateCalls, 1);
+      release(true);
+      assert.equal(await first, SEGMENTS);
+      // Settled loop was evicted: a later call runs fresh (and hits cache)
+      assert.equal(
+        await warmSegments(reader, { source, waitForView }),
+        SEGMENTS,
+      );
+      assert.equal(gateCalls, 2);
+      assert.equal(fetches, 1);
+    });
+
+    it("warmSegments: coalesces with an activation-time fetch", async function () {
+      const { warmSegments, getSegmentsCached } = await loadSegmentCache();
+      const reader = fakeReader();
+      let resolveFetch!: (segments: typeof SEGMENTS) => void;
+      let fetches = 0;
+      const source = {
+        getSegments: () => {
+          fetches++;
+          return new Promise<typeof SEGMENTS>((resolve) => {
+            resolveFetch = resolve;
+          });
+        },
+        segmentApiAbsent: () => false,
+      };
+      const warm = warmSegments(reader, {
+        source,
+        waitForView: () => Promise.resolve(true),
+      });
+      // Let the warm loop pass its readiness gate and start the fetch
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      const direct = getSegmentsCached(reader, source);
+      resolveFetch(SEGMENTS);
+      assert.equal(await warm, SEGMENTS);
+      assert.equal(await direct, SEGMENTS);
+      assert.equal(fetches, 1);
+    });
+
     it("getPageTargets: serves only the hovered page's segments", async function () {
       const { getSegmentsCached, getPageTargets } = await loadSegmentCache();
       const reader = fakeReader();

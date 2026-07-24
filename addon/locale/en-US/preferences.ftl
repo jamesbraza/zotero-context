@@ -1,6 +1,8 @@
 pref-title = Zotero Context
 pref-enable =
     .label = Enable
+pref-warm-on-open =
+    .label = Prepare sentence snap when a document opens (uses some background CPU per document)
 pref-mcp-title = MCP server
 pref-mcp-description = Lets MCP clients (Claude Code, Claude desktop, OpenAI's Codex CLI, or any other MCP-capable chat) pull your grabs and papers over localhost. Off by default; requests need the minted token below. Browser-based chats such as claude.ai cannot connect to localhost servers.
 pref-mcp-enable =

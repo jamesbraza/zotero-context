@@ -8,6 +8,7 @@ declare namespace _ZoteroTypes {
   interface Prefs {
     PluginPrefsMap: {
       "enable": boolean;
+      "warmOnOpen": boolean;
       "mcpEnabled": boolean;
       "mcpPort": number;
       "mcpToken": string;

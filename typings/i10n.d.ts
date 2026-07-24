@@ -14,4 +14,5 @@ export type FluentMessageId =
   | 'pref-mcp-status'
   | 'pref-mcp-title'
   | 'pref-title'
+  | 'pref-warm-on-open'
   | 'prefs-title';

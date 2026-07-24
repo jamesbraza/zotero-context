@@ -13,10 +13,12 @@ import {
   clearReaderSelection,
   clientToPdfPoint,
   cropPageRegion,
+  getOpenReaders,
   getPageAt,
   getPageLabel,
   getPageEl,
   getReaderDocument,
+  getVisiblePageIndex,
   pdfRectToClientRect,
   segmentApiAbsent,
 } from "../adapter/reader";
@@ -39,8 +41,10 @@ import {
   getPageTargets,
   getSegmentsCached,
   textSnapStateFrom,
+  warmSegments,
 } from "./segment-cache";
 import { logError } from "../utils/log";
+import { getPref } from "../utils/prefs";
 
 type ReaderInstance = _ZoteroTypes.ReaderInstance;
 
@@ -103,6 +107,25 @@ function getState(reader: ReaderInstance): GrabState {
   return s;
 }
 
+/**
+ * Background warm-up so grab-mode activation is instant (spec: grab-mode
+ * performance; pref-gated by warmOnOpen). Promise-driven — no polling — and
+ * safe to call repeatedly. Once segments land, snap targets for the visible
+ * page ±1 are precomputed so the first hover glows without delay.
+ */
+function warmReader(reader: ReaderInstance) {
+  prefetchOutline(reader);
+  void warmSegments(reader, {
+    onReady: () => {
+      const visible = getVisiblePageIndex(reader);
+      if (visible === null) return;
+      for (const page of [visible - 1, visible, visible + 1]) {
+        if (page >= 0) void getPageTargets(reader, page);
+      }
+    },
+  });
+}
+
 export function registerGrabMode() {
   Zotero.Reader.registerEventListener(
     "renderToolbar",
@@ -120,6 +143,7 @@ export function registerGrabMode() {
       });
       append(button);
       getState(reader).buttonEl = button;
+      if (getPref("warmOnOpen")) warmReader(reader);
     },
     addon.data.config.addonID,
   );
@@ -131,6 +155,12 @@ export function registerGrabMode() {
     );
     if (reader) toggleGrabMode(reader);
   });
+
+  // renderToolbar has already fired for readers open before a mid-session
+  // plugin (re)load — sweep them so they warm too
+  if (getPref("warmOnOpen")) {
+    for (const reader of getOpenReaders()) warmReader(reader);
+  }
 }
 
 /** Deactivate grab mode everywhere — called on plugin shutdown so no capture
@@ -191,6 +221,14 @@ function activate(reader: ReaderInstance, state: GrabState) {
       );
       if (segments) {
         notify("Sentence snap ready — hover text and click");
+        // First hover must not wait on target computation: precompute the
+        // visible page ±1 (the rest fill lazily per hover)
+        const visible = getVisiblePageIndex(reader);
+        if (visible !== null) {
+          for (const page of [visible - 1, visible, visible + 1]) {
+            if (page >= 0) ensurePageTargets(reader, state, page);
+          }
+        }
       } else if (state.textSnapReady === false) {
         notify(
           "Text snap unavailable on this document — area grab still works",
@@ -358,6 +396,42 @@ function updatePreview(
   });
 }
 
+/** Kick off lazy snap-target computation for a page (no-op when computed or
+ * already in flight). Serves both the hover path and the visible ±1 warm
+ * prefetch at activation. */
+function ensurePageTargets(
+  reader: ReaderInstance,
+  state: GrabState,
+  pageIndex: number,
+) {
+  if (state.pageTargets.has(pageIndex)) return;
+  state.pageTargets.set(pageIndex, PENDING);
+  getPageTargets(reader, pageIndex)
+    .then((computed) => {
+      if (!state.active) return;
+      if (computed) {
+        state.pageTargets.set(pageIndex, computed);
+      } else {
+        state.pageTargets.delete(pageIndex); // retry on next hover
+        // The activation-time fetch can race the reader view; if the
+        // segment API turns out absent once the view exists, close the
+        // gate here (mirroring activation) — otherwise hovers stay
+        // "pending" forever and clicks are swallowed, killing area grab
+        if (state.textSnapReady === null && segmentApiAbsent(reader)) {
+          state.textSnapReady = false;
+          notify(
+            "Text snap unavailable on this document — area grab still works",
+            false,
+          );
+        }
+      }
+    })
+    .catch((e: unknown) => {
+      state.pageTargets.delete(pageIndex);
+      logError(`page targets (p${pageIndex})`, e);
+    });
+}
+
 type TargetHit =
   | { kind: "hit"; index: number; pageIndex: number; pageEl: Element }
   | { kind: "pending" }
@@ -374,32 +448,7 @@ function targetAt(
   if (!hit) return { kind: "none" };
   const targets = state.pageTargets.get(hit.pageIndex);
   if (targets === undefined) {
-    // Kick off lazy target computation for this page
-    state.pageTargets.set(hit.pageIndex, PENDING);
-    getPageTargets(reader, hit.pageIndex)
-      .then((computed) => {
-        if (!state.active) return;
-        if (computed) {
-          state.pageTargets.set(hit.pageIndex, computed);
-        } else {
-          state.pageTargets.delete(hit.pageIndex); // retry on next hover
-          // The activation-time fetch can race the reader view; if the
-          // segment API turns out absent once the view exists, close the
-          // gate here (mirroring activation) — otherwise hovers stay
-          // "pending" forever and clicks are swallowed, killing area grab
-          if (state.textSnapReady === null && segmentApiAbsent(reader)) {
-            state.textSnapReady = false;
-            notify(
-              "Text snap unavailable on this document — area grab still works",
-              false,
-            );
-          }
-        }
-      })
-      .catch((e: unknown) => {
-        state.pageTargets.delete(hit.pageIndex);
-        logError(`page targets (p${hit.pageIndex})`, e);
-      });
+    ensurePageTargets(reader, state, hit.pageIndex);
     return { kind: "pending" };
   }
   if (targets === PENDING) return { kind: "pending" };

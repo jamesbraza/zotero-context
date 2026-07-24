@@ -7,8 +7,9 @@ import {
   getReaderDocument,
   segmentApiAbsent,
   segmentDiagnostics,
+  waitForViewInitialized,
 } from "../src/adapter/reader";
-import { getSegmentsCached } from "../src/modules/segment-cache";
+import { getSegmentsCached, warmSegments } from "../src/modules/segment-cache";
 
 type ReaderInstance = _ZoteroTypes.ReaderInstance;
 
@@ -101,6 +102,28 @@ describe("adapter smoke (live reader)", function () {
     // calls yield nothing) — the module cache must keep returning the first
     // success for the reader's lifetime
     assert.equal(await getSegmentsCached(reader), segments);
+  });
+
+  it("view readiness chain resolves; warm-up fills the shared cache", async function () {
+    this.timeout(CONVERGE_MS + 5_000);
+    // The promise chain (reader._initPromise → view.initializedPromise) is
+    // the warm-up trigger — churn here silently disables warming, so pin it
+    const ready = await waitForViewInitialized(reader);
+    assert.isTrue(ready, `view initialized (${segmentDiagnostics(reader)})`);
+    // After the view promise, the document must know its pages: this is what
+    // makes the no-retry warm design sound
+    assert.match(
+      segmentDiagnostics(reader),
+      /numPages=[1-9]/,
+      "page count known right after view init",
+    );
+    const warmed = await warmSegments(reader);
+    assert.isArray(
+      warmed,
+      `warm-up yields segments (${segmentDiagnostics(reader)})`,
+    );
+    // Warm-up and the activation path share one cache entry
+    assert.equal(await getSegmentsCached(reader), warmed);
   });
 
   it("per-page chars expose cloned geometry", async function () {
