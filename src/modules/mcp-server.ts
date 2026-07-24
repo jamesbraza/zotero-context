@@ -286,50 +286,54 @@ export function unregisterMcpServer(): void {
   void stop();
 }
 
-/** Copy-ready setup surface for the prefs pane (spec: mcp-delivery). */
-export function mcpPrefsApi() {
-  const endpoint = () => `http://127.0.0.1:${configuredPort()}${MCP_PATH}`;
-  const claudeCodeCommand = () =>
-    `claude mcp add --transport http zotero-context ${endpoint()} ` +
-    `--header "Authorization: Bearer ${token()}"`;
-  // The `mcpServers` JSON schema is the de facto cross-client config format
-  // (Claude desktop, Cursor, Windsurf, ...)
-  const mcpConfigJson = () =>
-    JSON.stringify(
-      {
-        mcpServers: {
-          "zotero-context": {
-            type: "http",
-            url: endpoint(),
-            headers: { Authorization: `Bearer ${token()}` },
-          },
+const endpoint = () => `http://127.0.0.1:${configuredPort()}${MCP_PATH}`;
+
+const claudeCodeCommand = () =>
+  `claude mcp add --transport http zotero-context ${endpoint()} ` +
+  `--header "Authorization: Bearer ${token()}"`;
+
+// The `mcpServers` JSON schema is the de facto cross-client config format
+// (Claude desktop, Cursor, Windsurf, ...)
+const mcpConfigJson = () =>
+  JSON.stringify(
+    {
+      mcpServers: {
+        "zotero-context": {
+          type: "http",
+          url: endpoint(),
+          headers: { Authorization: `Bearer ${token()}` },
         },
       },
-      null,
-      2,
-    );
-  // guard(): a failed copy (clipboard, token mint) toasts + logs, never
-  // vanishes into the prefs pane's event handler
-  const copied = (what: string, text: () => string) =>
-    guard(`Copy ${what}`, () => {
-      copyText(text());
-      notify(`${what} copied`);
-    });
-  return {
-    status: getMcpStatus,
-    /** Subscribe to status changes; returns unsubscribe. */
-    onStatusChange: (listener: () => void): (() => void) => {
-      statusListeners.add(listener);
-      return () => statusListeners.delete(listener);
     },
-    copyClaudeCodeCommand: () => {
-      void copied("Claude Code setup command", claudeCodeCommand);
-    },
-    copyMcpConfig: () => {
-      void copied("MCP config", mcpConfigJson);
-    },
-    copyToken: () => {
-      void copied("Token", token);
-    },
-  };
-}
+    null,
+    2,
+  );
+
+// guard(): a failed copy (clipboard, token mint) toasts + logs, never
+// vanishes into the prefs pane's event handler
+const copied = (what: string, text: () => string) =>
+  guard(`Copy ${what}`, () => {
+    copyText(text());
+    notify(`${what} copied`);
+  });
+
+/** Copy-ready setup surface for the prefs pane (spec: mcp-delivery),
+ * published as `addon.api.mcp` on startup so the settings-window script can
+ * reach it without imports. */
+export const mcpPrefsApi = {
+  status: getMcpStatus,
+  /** Subscribe to status changes; returns unsubscribe. */
+  onStatusChange: (listener: () => void): (() => void) => {
+    statusListeners.add(listener);
+    return () => statusListeners.delete(listener);
+  },
+  copyClaudeCodeCommand: () => {
+    void copied("Claude Code setup command", claudeCodeCommand);
+  },
+  copyMcpConfig: () => {
+    void copied("MCP config", mcpConfigJson);
+  },
+  copyToken: () => {
+    void copied("Token", token);
+  },
+};

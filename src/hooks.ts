@@ -26,7 +26,7 @@ async function onStartup() {
   registerPaperIntro();
   registerBundleDelivery();
   registerMcpServer();
-  addon.api.mcp = mcpPrefsApi();
+  addon.api.mcp = mcpPrefsApi;
 
   for (const win of Zotero.getMainWindows()) {
     onMainWindowLoad(win);
