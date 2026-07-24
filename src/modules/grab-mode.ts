@@ -485,21 +485,84 @@ function updateHover(reader: ReaderInstance, state: GrabState, ev: MouseEvent) {
   for (const rect of target.rects) {
     const client = pdfRectToClientRect(reader, hit.pageEl, hit.pageIndex, rect);
     if (!client) continue;
-    const glow = doc.createElement("div");
-    Object.assign(glow.style, {
-      position: "fixed",
-      left: `${client.left - 2}px`,
-      top: `${client.top - 2}px`,
-      width: `${client.width + 4}px`,
-      height: `${client.height + 4}px`,
-      background: "rgba(64,114,229,0.18)",
-      borderRadius: "3px",
-      pointerEvents: "none",
-      zIndex: "99998",
-    });
+    // Halo inset: the glow reads better slightly larger than the text box
+    const glow = overlayEl(
+      doc,
+      {
+        left: client.left - 2,
+        top: client.top - 2,
+        width: client.width + 4,
+        height: client.height + 4,
+      },
+      { background: "rgba(64,114,229,0.18)" },
+    );
     doc.body.appendChild(glow);
     state.glowEls.push(glow);
   }
+}
+
+interface OverlayRect {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+}
+
+/** Fixed-position overlay div, shared by the hover glow and the grab flash
+ * so their placement/stacking behavior cannot drift apart. */
+function overlayEl(
+  doc: Document,
+  rect: OverlayRect,
+  style: Readonly<Record<string, string>>,
+): HTMLElement {
+  const el = doc.createElement("div");
+  Object.assign(
+    el.style,
+    {
+      position: "fixed",
+      left: `${rect.left}px`,
+      top: `${rect.top}px`,
+      width: `${rect.width}px`,
+      height: `${rect.height}px`,
+      borderRadius: "3px",
+      pointerEvents: "none",
+      zIndex: "99998",
+    },
+    style,
+  );
+  return el;
+}
+
+/** Fade duration of the grab-confirmation flash. */
+const FLASH_FADE_MS = 300;
+/** DOM lifetime of a flash: the fade plus headroom for it to finish. */
+const FLASH_REMOVE_MS = FLASH_FADE_MS + 150;
+
+/**
+ * Brief in-place dim flash confirming a successful grab — the quiet
+ * replacement for the "copied" toasts. A translucent darkening (rather than
+ * a light burst) stays comfortable for night reading. Self-removing on a
+ * window-scoped timer (which dies with the document, so a tab closed
+ * mid-fade cannot fire removal against a dead wrapper): no teardown
+ * bookkeeping, and a flash outliving deactivation by <0.5s is harmless.
+ */
+function flashRects(doc: Document, rects: readonly OverlayRect[]): void {
+  const body = doc.body;
+  const win = doc.defaultView;
+  if (!body || !win || rects.length === 0) return;
+  const els = rects.map((rect) =>
+    overlayEl(doc, rect, {
+      background: "rgba(0,0,0,0.25)",
+      transition: `opacity ${FLASH_FADE_MS}ms ease-out`,
+    }),
+  );
+  for (const el of els) body.appendChild(el);
+  // Force a style flush so the opacity change below actually transitions
+  void els[0]?.offsetWidth;
+  for (const el of els) el.style.opacity = "0";
+  win.setTimeout(() => {
+    for (const el of els) el.remove();
+  }, FLASH_REMOVE_MS);
 }
 
 /** The reader's paper, or null (with a user notice) when unresolvable. */
@@ -580,11 +643,22 @@ async function handleTextClick(
     },
   });
   await deliverGrab(doc, grab, isFirstForPaper, paper.info);
-  notify(
-    ev.shiftKey
-      ? "Extended text grab copied — paste it into your chat"
-      : "Text grab copied — paste it into your chat (shift-click to extend)",
-  );
+  // Confirm in place: flash the whole grabbed range (fires only after the
+  // clipboard delivery above, so success is what it signals). Reproject
+  // through a freshly-resolved page element: pdf.js can recycle the page
+  // div during the awaits above (the pendingClientPoint hazard), and a
+  // stale element would yield no rects — skip when the page is unmounted.
+  const pageEl = getPageEl(reader, hit.pageIndex);
+  if (!pageEl) return;
+  const hi = Math.max(anchor, index);
+  const clientRects: OverlayRect[] = [];
+  for (let i = lo; i <= hi; i++) {
+    for (const rect of targets[i]?.rects ?? []) {
+      const client = pdfRectToClientRect(reader, pageEl, hit.pageIndex, rect);
+      if (client) clientRects.push(client);
+    }
+  }
+  flashRects(doc, clientRects);
 }
 
 async function handleAreaClick(
@@ -643,6 +717,18 @@ async function handleAreaClick(
   const paper = resolvePaper(reader);
   if (!doc || !paper) return;
 
+  // Capture flash geometry in PDF space NOW: the awaits below can span a
+  // scroll or zoom, and the click-time client rect would go stale (the same
+  // hazard the anchor reprojection above guards)
+  const pdfA = clientToPdfPoint(reader, pageEl, pageIndex, rect.left, rect.top);
+  const pdfB = clientToPdfPoint(
+    reader,
+    pageEl,
+    pageIndex,
+    rect.left + rect.width,
+    rect.top + rect.height,
+  );
+
   const { grab, isFirstForPaper } = trail.append({
     ts: Date.now(),
     kind: "image",
@@ -651,13 +737,19 @@ async function handleAreaClick(
       paperId: paper.paperId,
       pageIndex,
       pageLabel: getPageLabel(reader, pageIndex),
-      section: await resolveSection(
-        reader,
-        pageIndex,
-        clientToPdfPoint(reader, pageEl, pageIndex, rect.left, rect.top)?.y,
-      ),
+      section: await resolveSection(reader, pageIndex, pdfA?.y),
     },
   });
   await deliverGrab(doc, grab, isFirstForPaper, paper.info);
-  notify("Grab copied — paste it into your chat");
+  // Confirm in place: reproject the captured region to the CURRENT client
+  // space through a freshly-resolved page element; skip when unmounted
+  const flashPageEl = getPageEl(reader, pageIndex);
+  if (!flashPageEl || !pdfA || !pdfB) return;
+  const client = pdfRectToClientRect(reader, flashPageEl, pageIndex, [
+    pdfA.x,
+    pdfA.y,
+    pdfB.x,
+    pdfB.y,
+  ]);
+  if (client) flashRects(doc, [client]);
 }

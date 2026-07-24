@@ -32,11 +32,25 @@ The plugin SHALL visibly indicate whenever grab mode is active, via at least the
 - **WHEN** grab mode activates or deactivates
 - **THEN** the toolbar button state and cursor update immediately to match
 
+### Requirement: Quiet feedback
+
+Grab mode SHALL confirm each successful grab with a transient in-place visual flash over the grabbed geometry (the grabbed sentence range for text grabs; the captured region for area grabs), rendered against the document's current scroll/zoom position at the moment of confirmation. Grab mode SHALL NOT show informational toasts (activation, readiness, or per-grab success); toasts are reserved for failures.
+
+#### Scenario: Success confirms in place
+
+- **WHEN** a text or area grab completes delivery to the clipboard
+- **THEN** a brief flash appears over the grabbed content at its current on-screen position and fades away, and no success toast is shown
+
+#### Scenario: Failures still toast
+
+- **WHEN** a grab cannot complete (e.g. the region cannot be rendered or the item cannot be resolved)
+- **THEN** a failure toast is shown
+
 ### Requirement: Non-interference with normal reading
 
-Grab mode SHALL NOT alter Zotero's native selection, annotation, or navigation behavior when inactive, and SHALL remove all of its overlays and listeners from the reader when deactivated.
+Grab mode SHALL NOT alter Zotero's native selection, annotation, or navigation behavior when inactive, and SHALL remove all of its overlays and listeners from the reader when deactivated, except that a grab-confirmation flash already fading MAY complete its fade (bounded by its fade duration) before removing itself.
 
 #### Scenario: Clean deactivation
 
 - **WHEN** grab mode is deactivated
-- **THEN** no hover highlights, preview rectangles, or grab click-handlers remain active, and native reader interactions behave as stock Zotero
+- **THEN** no hover highlights, preview rectangles, or grab click-handlers remain active, and native reader interactions behave as stock Zotero (a confirmation flash mid-fade may finish fading first)
