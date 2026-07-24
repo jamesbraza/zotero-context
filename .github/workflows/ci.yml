@@ -76,4 +76,12 @@ jobs:
           [ -s zotero.tar.xz ] || wget -qO zotero.tar.xz 'https://www.zotero.org/download/client/dl?platform=linux-x86_64&channel=release'
           tar -xf zotero.tar.xz
           echo "ZOTERO_PLUGIN_ZOTERO_BIN_PATH=$PWD/Zotero_linux-x86_64/zotero" >> "$GITHUB_ENV"
+      # Pre-install what zotero-plugin-scaffold's prepareHeadless would
+      # otherwise apt-install silently: its Xvfb launch waits only 2 s for
+      # the display, and on a slow runner the hidden apt phase pushes Xvfb
+      # past that window ("Could not start Xvfb", seen on run 30116604660).
+      # https://github.com/northword/zotero-plugin-scaffold/blob/v0.8.7/src/core/tester/headless.ts#L8-L19
+      # (package list at L67; v0.8.7 matches package-lock.json)
+      - name: Pre-install headless display packages
+        run: sudo apt-get install -y xvfb x11-xkb-utils xkb-data
       - run: npm run test
