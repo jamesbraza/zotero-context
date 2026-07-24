@@ -1,0 +1,8 @@
+rules:
+  excessive-permissions:
+    # Repo default token is read-only; we don't restate defaults in workflows
+    disable: true
+  unpinned-uses:
+    config:
+      policies:
+        "*": ref-pin # We let Renovate pin and upgrade tags

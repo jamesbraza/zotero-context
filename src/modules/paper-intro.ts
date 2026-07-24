@@ -11,7 +11,7 @@
  */
 import type { PaperInfo } from "../core/provenance";
 import { copyFileWithText, copyText } from "./clipboard";
-import { paperInfoFromItem } from "./grab-session";
+import { fieldText, paperInfoFromItem } from "./grab-session";
 import { registerChord } from "./hotkeys";
 import { guard, notify } from "./notify";
 
@@ -43,7 +43,7 @@ async function copyPaperIntro() {
     return;
   }
   const { paperId, info } = paperInfoFromItem(top);
-  const abstract = String(top.getField("abstractNote") ?? "").trim();
+  const abstract = fieldText(top, "abstractNote").trim();
   const intro = composeIntro(info, abstract);
 
   const secondPhase =

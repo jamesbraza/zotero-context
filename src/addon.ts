@@ -11,7 +11,7 @@ class Addon {
     initialized?: boolean;
     ztoolkit: ZToolkit;
     locale?: {
-      current: any;
+      current: Localization;
     };
   };
   // Lifecycle hooks

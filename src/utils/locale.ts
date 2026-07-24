@@ -11,7 +11,7 @@ import { FluentMessageId } from "../../typings/i10n";
 type StripAddonRef<T> = T extends `zoterocontext-${infer K}` ? K : T;
 type LocaleKey = StripAddonRef<FluentMessageId>;
 
-export { initLocale, getString, getLocaleID };
+export { initLocale, getString };
 
 /**
  * Initialize locale data
@@ -50,43 +50,27 @@ function initLocale() {
  * getString("addon-dynamic-example", { args: { count: 2 } }); // I have 2 apples
  * ```
  */
-function getString(localString: LocaleKey): string;
-function getString(localString: LocaleKey, branch: string): string;
 function getString(
   localeString: LocaleKey,
-  options: { branch?: string | undefined; args?: Record<string, unknown> },
-): string;
-function getString(...inputs: any[]) {
-  if (inputs.length === 1) {
-    return _getString(inputs[0]);
-  } else if (inputs.length === 2) {
-    if (typeof inputs[1] === "string") {
-      return _getString(inputs[0], { branch: inputs[1] });
-    } else {
-      return _getString(inputs[0], inputs[1]);
-    }
-  } else {
-    throw new Error("Invalid arguments");
-  }
-}
-
-interface Pattern {
-  value: string | null;
-  attributes: Array<{
-    name: string;
-    value: string;
-  }> | null;
+  branchOrOptions?:
+    string | { branch?: string | undefined; args?: L10nArgs | undefined },
+): string {
+  const options =
+    typeof branchOrOptions === "string"
+      ? { branch: branchOrOptions }
+      : (branchOrOptions ?? {});
+  return _getString(localeString, options);
 }
 
 function _getString(
   localeString: LocaleKey,
-  options: { branch?: string | undefined; args?: Record<string, unknown> } = {},
+  options: { branch?: string | undefined; args?: L10nArgs | undefined } = {},
 ): string {
   const localStringWithPrefix = `${config.addonRef}-${localeString}`;
   const { branch, args } = options;
   const pattern = addon.data.locale?.current.formatMessagesSync([
-    { id: localStringWithPrefix, args },
-  ])[0] as Pattern;
+    { id: localStringWithPrefix, args: args ?? null },
+  ])?.[0];
 
   if (!pattern) {
     return localStringWithPrefix;
@@ -99,8 +83,4 @@ function _getString(
   } else {
     return pattern.value || localStringWithPrefix;
   }
-}
-
-function getLocaleID(id: LocaleKey) {
-  return `${config.addonRef}-${id}`;
 }

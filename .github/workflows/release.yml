@@ -23,4 +23,3 @@ jobs:
         [[ "$GITHUB_REF_NAME" =~ $semver ]] || { echo "Tag '$GITHUB_REF_NAME' is not v-prefixed semver"; exit 1; }
         npm pkg set version="${GITHUB_REF_NAME#v}"
       release: "npm run release"
-    secrets: inherit

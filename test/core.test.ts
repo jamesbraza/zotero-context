@@ -98,7 +98,9 @@ const ALIGNMENT_CASES: {
     ],
     expectTargets: 2,
     // Second sentence must start at the char right after "." (index 11)
-    check: (t) => assert.equal(t[1].rects[0][0], 110),
+    check: (t) => {
+      assert.equal(t[1].rects[0][0], 110);
+    },
   },
   {
     // Chars contain a line-break hyphen the segment text lacks
@@ -107,7 +109,9 @@ const ALIGNMENT_CASES: {
     glyphs: [..."Areward-design.".split(""), ..."Nextone.".split("")],
     expectTargets: 2,
     // "Next" starts after "Areward-design." = 15 units → x = 150
-    check: (t) => assert.equal(t[1].rects[0][0], 150),
+    check: (t) => {
+      assert.equal(t[1].rects[0][0], 150);
+    },
   },
   {
     name: "returns the whole segment when there is one sentence",
@@ -115,7 +119,9 @@ const ALIGNMENT_CASES: {
     glyphs: "Onlyonesentencehere".split(""),
     segRects: [[1, 2, 3, 4]],
     expectTargets: 1,
-    check: (t) => assert.deepEqual(t[0].rects, [[1, 2, 3, 4]]),
+    check: (t) => {
+      assert.deepEqual(t[0].rects, [[1, 2, 3, 4]]);
+    },
   },
 ];
 

@@ -41,6 +41,14 @@ repos:
     hooks:
       - id: typos
         exclude: ^package-lock\.json$
+  - repo: https://github.com/rhysd/actionlint
+    rev: v1.7.12
+    hooks:
+      - id: actionlint
+  - repo: https://github.com/woodruffw/zizmor-pre-commit
+    rev: v1.28.0
+    hooks:
+      - id: zizmor
   - repo: https://github.com/jumanjihouse/pre-commit-hooks
     rev: 3.0.0
     hooks:
@@ -65,3 +73,9 @@ repos:
         language: system
         pass_filenames: false
         types_or: [ts, tsx]
+      - id: knip
+        name: knip
+        entry: npx --no-install knip
+        language: system
+        pass_filenames: false
+        types_or: [ts, tsx, javascript, jsx, json]

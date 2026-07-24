@@ -83,13 +83,14 @@ function alignTextToChars(
   let ti = 0;
   let mismatches = 0;
   while (ti < segmentText.length) {
-    const t = segmentText[ti];
+    const t = segmentText.charAt(ti);
     if (/\s/.test(t)) {
       ti++;
       continue;
     }
-    if (ci >= chars.length) return null;
-    const unit = (chars[ci].u ?? chars[ci].c ?? "").normalize("NFKC");
+    const ch = chars[ci];
+    if (!ch) return null;
+    const unit = (ch.u ?? ch.c ?? "").normalize("NFKC");
     if (!unit) {
       ci++;
       continue;
@@ -139,12 +140,14 @@ function lineTargetsFromChars(chars: readonly CharGeom[]): SentenceTarget[] {
     );
     const height = rect[3] - rect[1];
     let text = "";
-    for (let i = 0; i < lineChars.length; i++) {
-      if (i > 0) {
-        const gap = lineChars[i].inlineRect[0] - lineChars[i - 1].inlineRect[2];
+    let prevCh: CharGeom | undefined;
+    for (const ch of lineChars) {
+      if (prevCh) {
+        const gap = ch.inlineRect[0] - prevCh.inlineRect[2];
         if (gap > 0.22 * height) text += " ";
       }
-      text += lineChars[i].u ?? lineChars[i].c ?? "";
+      text += ch.u ?? ch.c ?? "";
+      prevCh = ch;
     }
     if (text.trim()) targets.push({ text: text.trim(), rects: [rect] });
     lineChars = [];

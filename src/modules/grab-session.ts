@@ -28,12 +28,12 @@ const outlineCache = new WeakMap<object, Promise<OutlineEntry[] | null>>();
  * "no outline" — so the next grab retries instead of losing section
  * resolution for the session. */
 export function prefetchOutline(reader: ReaderInstance): void {
-  if (!outlineCache.has(reader as object)) {
+  if (!outlineCache.has(reader)) {
     const p = getOutlineEntries(reader).then((entries) => {
-      if (!entries) outlineCache.delete(reader as object);
+      if (!entries) outlineCache.delete(reader);
       return entries;
     });
-    outlineCache.set(reader as object, p);
+    outlineCache.set(reader, p);
   }
 }
 
@@ -56,9 +56,11 @@ export async function resolveSection(
 ): Promise<string | undefined> {
   prefetchOutline(reader);
   const entries = await Promise.race([
-    outlineCache.get(reader as object)!,
+    outlineCache.get(reader)!,
     new Promise<null>((resolve) =>
-      setTimeout(() => resolve(null), SECTION_RESOLVE_TIMEOUT_MS),
+      setTimeout(() => {
+        resolve(null);
+      }, SECTION_RESOLVE_TIMEOUT_MS),
     ),
   ]);
   if (!entries) return undefined;
@@ -87,12 +89,21 @@ export async function resolveSection(
  * Trail identity + citation metadata for a top-level item, via official
  * Zotero APIs (no reader internals involved).
  */
+/** getField is typed `string` but can return non-string values at runtime. */
+export function fieldText(
+  item: Zotero.Item,
+  field: Parameters<Zotero.Item["getField"]>[0],
+): string {
+  const value: unknown = item.getField(field);
+  return typeof value === "string" ? value : "";
+}
+
 export function paperInfoFromItem(top: Zotero.Item): PaperRef {
-  const year = String(top.getField("date") ?? "").match(/\d{4}/)?.[0] ?? "";
+  const year = fieldText(top, "date").match(/\d{4}/)?.[0] ?? "";
   const ref: PaperRef = {
     paperId: `${top.libraryID}/${top.key}`,
     info: {
-      title: String(top.getField("title") ?? "Untitled"),
+      title: fieldText(top, "title") || "Untitled",
       creatorSummary: top.firstCreator || "Unknown authors",
       year,
     },

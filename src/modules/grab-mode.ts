@@ -84,7 +84,7 @@ const states = new WeakMap<object, GrabState>();
 const activeReaders = new Set<ReaderInstance>();
 
 function getState(reader: ReaderInstance): GrabState {
-  let s = states.get(reader as object);
+  let s = states.get(reader);
   if (!s) {
     s = {
       active: false,
@@ -98,7 +98,7 @@ function getState(reader: ReaderInstance): GrabState {
       textAnchor: null,
       teardown: [],
     };
-    states.set(reader as object, s);
+    states.set(reader, s);
   }
   return s;
 }
@@ -107,7 +107,7 @@ export function registerGrabMode() {
   Zotero.Reader.registerEventListener(
     "renderToolbar",
     (event) => {
-      const { reader, doc, append } = event as any;
+      const { reader, doc, append } = event;
       const button = doc.createElement("button");
       button.className = "toolbar-button zotero-context-grab-button";
       button.title =
@@ -115,7 +115,9 @@ export function registerGrabMode() {
         "or click two corners to copy a region (Ctrl+Alt+G)";
       button.textContent = "⌖";
       button.style.fontSize = "16px";
-      button.addEventListener("click", () => toggleGrabMode(reader, button));
+      button.addEventListener("click", () => {
+        toggleGrabMode(reader, button);
+      });
       append(button);
       getState(reader).buttonEl = button;
     },
@@ -136,7 +138,7 @@ export function registerGrabMode() {
  * until the tab closes). */
 export function deactivateAllGrabModes() {
   for (const reader of [...activeReaders]) {
-    const state = states.get(reader as object);
+    const state = states.get(reader);
     if (state?.active) {
       deactivate(reader, state);
       syncButton(state);
@@ -144,10 +146,7 @@ export function deactivateAllGrabModes() {
   }
 }
 
-export function toggleGrabMode(
-  reader: ReaderInstance,
-  button?: HTMLElement | null,
-) {
+function toggleGrabMode(reader: ReaderInstance, button?: HTMLElement | null) {
   const state = getState(reader);
   if (button) state.buttonEl = button;
   if (state.active) {
@@ -201,7 +200,9 @@ function activate(reader: ReaderInstance, state: GrabState) {
       // Transient miss (textSnapReady left null): stay quiet — the lazy
       // target path retries on hover and snap activates when segments land
     })
-    .catch((e) => logError("segment load", e));
+    .catch((e: unknown) => {
+      logError("segment load", e);
+    });
 
   root.style.cursor = "crosshair";
   state.teardown.push(() => {
@@ -223,7 +224,9 @@ function activate(reader: ReaderInstance, state: GrabState) {
     preview.remove();
     state.previewEl = null;
   });
-  state.teardown.push(() => clearGlow(state));
+  state.teardown.push(() => {
+    clearGlow(state);
+  });
 
   const onClick = (ev: MouseEvent) => {
     ev.preventDefault();
@@ -248,7 +251,9 @@ function activate(reader: ReaderInstance, state: GrabState) {
       updateHover(reader, state, ev);
     }
   };
-  const onScroll = () => clearGlow(state);
+  const onScroll = () => {
+    clearGlow(state);
+  };
   const onKey = (ev: KeyboardEvent) => {
     if (ev.key !== "Escape") return;
     ev.preventDefault();
@@ -391,7 +396,7 @@ function targetAt(
           }
         }
       })
-      .catch((e) => {
+      .catch((e: unknown) => {
         state.pageTargets.delete(hit.pageIndex);
         logError(`page targets (p${hit.pageIndex})`, e);
       });
@@ -508,7 +513,9 @@ async function handleTextClick(
   const paper = resolvePaper(reader);
   if (!doc || !paper) return;
 
-  const first = targets[lo];
+  // lo = min(anchor, index) ≤ index, and index is an in-bounds
+  // hitTestTarget result on this same targets array
+  const first = targets[lo]!;
   const pageIndex = first.pageIndex;
   const topY = first.rects[0]?.[3] ?? null;
   const { grab, isFirstForPaper } = trail.append({

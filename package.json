@@ -20,6 +20,9 @@
   },
   "homepage": "https://github.com/jamesbraza/zotero-context",
   "license": "AGPL-3.0-or-later",
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  },
   "scripts": {
     "start": "zotero-plugin serve",
     "build": "zotero-plugin build && tsc --noEmit",
@@ -40,9 +43,11 @@
     "@zotero-plugin/eslint-config": "^0.6.10",
     "chai": "^6.2.2",
     "eslint": "^10.7.0",
+    "knip": "^6.29.0",
     "mocha": "^11.7.6",
     "prettier": "^3.9.6",
     "typescript": "^6.0.3",
+    "typescript-eslint": "^8.65.0",
     "zotero-plugin-scaffold": "^0.8.7",
     "zotero-types": "^4.1.2"
   },

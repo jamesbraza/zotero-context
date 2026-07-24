@@ -63,14 +63,14 @@ export function wrapToWidth(
   const words = text.split(/\s+/).filter(Boolean);
   const lines: string[] = [];
   let current = "";
-  for (let i = 0; i < words.length; i++) {
-    const candidate = current ? `${current} ${words[i]}` : words[i];
+  for (const [i, word] of words.entries()) {
+    const candidate = current ? `${current} ${word}` : word;
     if (ctx.measureText(candidate).width <= maxWidth || !current) {
       current = candidate;
       continue;
     }
     lines.push(current);
-    current = words[i];
+    current = word;
     if (lines.length === STRIP_MAX_LINES - 1) {
       // Last allowed line: gather the rest and ellipsize if needed
       const rest = words.slice(i).join(" ");
@@ -85,8 +85,12 @@ export function wrapToWidth(
 function loadImage(doc: Document, src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = doc.createElement("img");
-    img.onload = () => resolve(img);
-    img.onerror = () => reject(new Error("caption strip: image load failed"));
+    img.onload = () => {
+      resolve(img);
+    };
+    img.onerror = () => {
+      reject(new Error("caption strip: image load failed"));
+    };
     img.src = src;
   });
 }

@@ -5,7 +5,7 @@
  * reused by the future browser-extension sibling and published standalone.
  */
 
-export type GrabKind = "text" | "image";
+type GrabKind = "text" | "image";
 
 /** Where a grab came from, sufficient to render its provenance header. */
 export interface GrabSource {
@@ -16,7 +16,7 @@ export interface GrabSource {
   /** Zero-based page index in the document. */
   pageIndex?: number;
   /** Resolved outline section (e.g. "4.3.2 Scaled Dot-Product Attention"). */
-  section?: string;
+  section?: string | undefined;
 }
 
 export interface Grab {

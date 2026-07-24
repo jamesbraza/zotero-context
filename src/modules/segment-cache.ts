@@ -33,22 +33,22 @@ export function getSegmentsCached(
   reader: ReaderInstance,
   source: SegmentSource = adapterSource,
 ): Promise<ReaderSegment[] | null> {
-  let p = cache.get(reader as object);
+  let p = cache.get(reader);
   if (!p) {
     p = source
       .getSegments(reader)
       .then((segments) => {
         if (!segments && !source.segmentApiAbsent(reader)) {
-          cache.delete(reader as object); // transient — allow retry
+          cache.delete(reader); // transient — allow retry
         }
         return segments;
       })
-      .catch((e): null => {
-        cache.delete(reader as object); // allow retry
+      .catch((e: unknown): null => {
+        cache.delete(reader); // allow retry
         logError("getSegmentsCached", e);
         return null;
       });
-    cache.set(reader as object, p);
+    cache.set(reader, p);
   }
   return p;
 }
@@ -85,10 +85,10 @@ export async function getPageTargets(
   const segments = await getSegmentsCached(reader);
   if (!segments) return null;
 
-  let pages = targetsCache.get(reader as object);
+  let pages = targetsCache.get(reader);
   if (!pages) {
     pages = new Map();
-    targetsCache.set(reader as object, pages);
+    targetsCache.set(reader, pages);
   }
   const cached = pages.get(pageIndex);
   if (cached) return cached;
