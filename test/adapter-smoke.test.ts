@@ -28,10 +28,10 @@ const CONVERGE_MS = 30_000;
 
 /** Poll fn until it returns a truthy value or the timeout elapses. */
 async function until<T>(
-  fn: () => T | Promise<T>,
+  fn: () => T | null | undefined | Promise<T | null | undefined>,
   timeoutMs: number,
   intervalMs = 250,
-): Promise<T> {
+): Promise<T | null | undefined> {
   const deadline = Date.now() + timeoutMs;
   let last = await fn();
   while (!last && Date.now() < deadline) {
@@ -69,11 +69,11 @@ describe("adapter smoke (live reader)", function () {
 
   after(async function () {
     this.timeout(30_000);
-    // close() is defined on the ReaderTab/ReaderWindow subclasses that
-    // Zotero.Reader.open() returns, but zotero-types only models the
-    // ReaderInstance base class
-    // (https://github.com/windingwind/zotero-types/issues/94)
-    if (reader) (reader as ReaderInstance & { close(): void }).close();
+    // Guards: if before() failed part-way these are unassigned at runtime,
+    // even though their declared types say otherwise
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+    if (reader) reader.close();
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
     if (attachment) await attachment.eraseTx();
   });
 

@@ -78,11 +78,6 @@ export default tseslint.config(
     rules: {
       // House style: invariant-backed `!` with a one-line justification
       "@typescript-eslint/no-non-null-assertion": "off",
-      // zotero-types is optimistic — e.g. Items.get and getByTabID omit
-      // their false/undefined returns (see
-      // https://github.com/windingwind/zotero-types/issues/94) — so
-      // "unnecessary" defensive conditions are frequently load-bearing here
-      "@typescript-eslint/no-unnecessary-condition": "off",
       // Numbers and booleans stringify unambiguously
       "@typescript-eslint/restrict-template-expressions": [
         "error",
