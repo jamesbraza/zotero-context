@@ -95,8 +95,9 @@ export default tseslint.config(
   {
     // src/adapter reaches into Zotero reader internals that are untyped by
     // design (private APIs, see adapter-smoke tests) — the unsafe-* family
-    // would demand disables on nearly every line there
-    files: ["src/adapter/**/*.ts"],
+    // would demand disables on nearly every line there. The MCP smoke test
+    // drives a raw XPCOM socket client for the same reason.
+    files: ["src/adapter/**/*.ts", "test/mcp-smoke.test.ts"],
     rules: {
       "@typescript-eslint/no-explicit-any": "off",
       "@typescript-eslint/no-redundant-type-constituents": "off",

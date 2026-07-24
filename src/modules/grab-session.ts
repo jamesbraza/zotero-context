@@ -1,6 +1,7 @@
 import { GrabTrail } from "../core/trail";
 import { sectionLabelFromTitle, type PaperInfo } from "../core/provenance";
 import { getOutlineEntries, type OutlineEntry } from "../adapter/reader";
+import { withTimeout } from "../utils/timeout";
 
 type ReaderInstance = _ZoteroTypes.ReaderInstance;
 
@@ -55,14 +56,11 @@ export async function resolveSection(
   pdfTopY?: number | null,
 ): Promise<string | undefined> {
   prefetchOutline(reader);
-  const entries = await Promise.race([
+  // Guaranteed present: prefetchOutline populates the cache above
+  const entries = await withTimeout(
     outlineCache.get(reader)!,
-    new Promise<null>((resolve) =>
-      setTimeout(() => {
-        resolve(null);
-      }, SECTION_RESOLVE_TIMEOUT_MS),
-    ),
-  ]);
+    SECTION_RESOLVE_TIMEOUT_MS,
+  );
   if (!entries) return undefined;
   // The scan below assumes cross-page reading order, which outline traversal
   // order follows in practice but does not guarantee; the stable page sort
@@ -110,6 +108,17 @@ export function paperInfoFromItem(top: Zotero.Item): PaperRef {
   };
   paperInfos.set(ref.paperId, ref.info);
   return ref;
+}
+
+/** Decode a paperId minted by `paperInfoFromItem` back to its Zotero item. */
+export function itemForPaperId(paperId: string): Zotero.Item | null {
+  const slash = paperId.indexOf("/");
+  if (slash <= 0) return null;
+  const item = Zotero.Items.getByLibraryAndKey(
+    Number(paperId.slice(0, slash)),
+    paperId.slice(slash + 1),
+  );
+  return item || null;
 }
 
 /** Resolve a reader attachment's paper (null when the item is missing). */

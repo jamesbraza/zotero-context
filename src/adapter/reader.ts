@@ -532,3 +532,10 @@ export function dataUrlBytes(dataUrl: string): number {
   const comma = dataUrl.indexOf(",");
   return Math.floor(((dataUrl.length - comma - 1) * 3) / 4);
 }
+
+/** Base64 payload of a data URL, or null when there is none. */
+export function dataUrlBase64(dataUrl: string): string | null {
+  const comma = dataUrl.indexOf(",");
+  if (comma < 0 || comma === dataUrl.length - 1) return null;
+  return dataUrl.slice(comma + 1);
+}

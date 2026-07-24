@@ -23,7 +23,7 @@ let cursor: {
   next: number;
 } | null = null;
 
-/** Trail length at the last bundle copy; delta bundles start here. */
+/** Trail watermark at the last bundle copy; delta bundles start here. */
 let watermark = 0;
 
 export function registerBundleDelivery() {
@@ -83,7 +83,7 @@ async function step(fullRecap: boolean) {
   }
   const bundle = renderBundle(grabs, papers);
   copyText(bundle.text);
-  watermark = trail.length;
+  watermark = trail.watermark;
   const what = fullRecap ? "Session recap" : "Bundle";
   if (bundle.images.length) {
     cursor = { images: bundle.images, next: 0 };

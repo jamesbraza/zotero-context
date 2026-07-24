@@ -21,6 +21,8 @@ export interface GrabSource {
 
 export interface Grab {
   id: string;
+  /** Monotonic sequence number, stamped by the trail; survives clears. */
+  seq: number;
   /** Milliseconds since epoch, stamped by the shell at capture time. */
   ts: number;
   kind: GrabKind;

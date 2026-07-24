@@ -1,6 +1,11 @@
 import { initLocale } from "./utils/locale";
 import { registerBundleDelivery } from "./modules/bundle-delivery";
 import { deactivateAllGrabModes, registerGrabMode } from "./modules/grab-mode";
+import {
+  mcpPrefsApi,
+  registerMcpServer,
+  unregisterMcpServer,
+} from "./modules/mcp-server";
 import { registerPaperIntro } from "./modules/paper-intro";
 import { registerPrefsPane } from "./modules/preferences";
 import { createZToolkit } from "./utils/ztoolkit";
@@ -17,6 +22,8 @@ async function onStartup() {
   registerGrabMode();
   registerPaperIntro();
   registerBundleDelivery();
+  registerMcpServer();
+  addon.api.mcp = mcpPrefsApi();
 
   for (const win of Zotero.getMainWindows()) {
     onMainWindowLoad(win);
@@ -50,6 +57,9 @@ function onShutdown(): void {
   // Grab mode attaches capture listeners directly to reader documents;
   // without this they would survive plugin disable and swallow every click
   deactivateAllGrabModes();
+  // The MCP socket would likewise outlive a disabled plugin
+  unregisterMcpServer();
+  delete addon.api.mcp;
   ztoolkit.unregisterAll();
   // Remove addon object
   addon.data.alive = false;
