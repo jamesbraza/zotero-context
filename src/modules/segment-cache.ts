@@ -70,6 +70,27 @@ export function textSnapStateFrom(
 
 const targetsCache = new WeakMap<object, Map<number, SnapTarget[]>>();
 
+/** Per-page index over a segments array, built once on first use. Keyed by
+ * the array itself (stable: the cached promise pins it per reader), so an
+ * evicted-and-refetched segments array simply gets a fresh index. */
+const pageIndexCache = new WeakMap<object, Map<number, ReaderSegment[]>>();
+
+function segmentsByPage(
+  segments: ReaderSegment[],
+): Map<number, ReaderSegment[]> {
+  let byPage = pageIndexCache.get(segments);
+  if (!byPage) {
+    byPage = new Map();
+    for (const seg of segments) {
+      const list = byPage.get(seg.position.pageIndex);
+      if (list) list.push(seg);
+      else byPage.set(seg.position.pageIndex, [seg]);
+    }
+    pageIndexCache.set(segments, byPage);
+  }
+  return byPage;
+}
+
 /**
  * Sentence snap targets for a page, computed lazily from that page's
  * paragraph segments + char geometry. Cached per reader+page only when char
@@ -95,8 +116,7 @@ export async function getPageTargets(
 
   const pageChars = getPageChars(reader, pageIndex);
   const targets: SnapTarget[] = [];
-  for (const seg of segments) {
-    if (seg.position.pageIndex !== pageIndex) continue;
+  for (const seg of segmentsByPage(segments).get(pageIndex) ?? []) {
     const slice =
       pageChars && seg.offsetEnd >= seg.offsetStart
         ? pageChars.slice(seg.offsetStart, seg.offsetEnd + 1)

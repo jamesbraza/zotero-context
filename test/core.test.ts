@@ -167,6 +167,15 @@ const SEGMENTS = [
 ] as unknown as NonNullable<
   Awaited<ReturnType<SegmentCache["getSegmentsCached"]>>
 >;
+/** Multi-page segments for the per-page index path (fake reader has no char
+ * geometry, so targets take the paragraph fallback — one per segment). */
+const PAGED_SEGMENTS = [
+  { text: "p0 first.", position: { pageIndex: 0, rects: [[0, 0, 1, 1]] } },
+  { text: "p1 first.", position: { pageIndex: 1, rects: [[0, 0, 1, 1]] } },
+  { text: "p0 second.", position: { pageIndex: 0, rects: [[0, 2, 1, 3]] } },
+] as unknown as NonNullable<
+  Awaited<ReturnType<SegmentCache["getSegmentsCached"]>>
+>;
 
 const CACHE_CASES: {
   name: string;
@@ -614,5 +623,25 @@ describe("core", function () {
         assert.strictEqual(textSnapStateFrom(segments, apiAbsent), expected);
       });
     }
+
+    it("getPageTargets: serves only the hovered page's segments", async function () {
+      const { getSegmentsCached, getPageTargets } = await loadSegmentCache();
+      const reader = fakeReader();
+      // Seed the same cache getPageTargets reads
+      await getSegmentsCached(reader, {
+        getSegments: () => Promise.resolve(PAGED_SEGMENTS),
+        segmentApiAbsent: () => false,
+      });
+      const page0 = await getPageTargets(reader, 0);
+      assert.deepEqual(
+        page0?.map((t) => t.text),
+        ["p0 first.", "p0 second."],
+      );
+      const page1 = await getPageTargets(reader, 1);
+      assert.deepEqual(
+        page1?.map((t) => t.text),
+        ["p1 first."],
+      );
+    });
   });
 });
