@@ -27,6 +27,11 @@ jobs:
         uses: zotero-plugin-dev/workflows/setup-js@v1.0.0
       - name: Run Build
         run: npm run build
+      # typings/ is committed so typecheck works without a build (editors,
+      # the pre-commit job); fail if a build no longer reproduces it
+      - name: Check committed typings are current
+        # intent-to-add so newly generated (untracked) files also fail the diff
+        run: git add --intent-to-add typings/ && git diff --exit-code typings/
       - name: Upload build result
         uses: actions/upload-artifact@v7
         with:

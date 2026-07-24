@@ -6,7 +6,7 @@ export type FluentMessageId =
   | 'pref-enable'
   | 'pref-help'
   | 'pref-mcp-copy-claude-code'
-  | 'pref-mcp-copy-claude-desktop'
+  | 'pref-mcp-copy-config'
   | 'pref-mcp-copy-token'
   | 'pref-mcp-description'
   | 'pref-mcp-enable'
