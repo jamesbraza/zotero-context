@@ -158,6 +158,32 @@ describe("mcp", function () {
         ).status,
         401,
       );
+      // Same length as the real token, one character off: exercises the
+      // constant-time compare's non-shortcut path
+      const nearMiss = `${TOKEN.slice(0, -1)}f`;
+      assert.notEqual(nearMiss, TOKEN);
+      assert.equal(
+        (
+          await handleRequest(
+            request({ headers: { authorization: `Bearer ${nearMiss}` } }),
+            PORT,
+            TOKEN,
+          )
+        ).status,
+        401,
+      );
+    });
+
+    it("accepts a case-variant auth scheme (RFC 7235)", async function () {
+      const res = await handleRequest(
+        request({
+          headers: { authorization: `bearer ${TOKEN}` },
+          body: rpcBody("tools/list", undefined, 3),
+        }),
+        PORT,
+        TOKEN,
+      );
+      assert.equal(res.status, 200);
     });
 
     it("400s unparsable and batched bodies", async function () {
@@ -307,6 +333,18 @@ describe("mcp", function () {
       const content = response.result?.content ?? [];
       assert.equal(content[0]?.type, "image");
       assert.isString(content[0]?.data);
+    });
+
+    it("revokes get_grab after a trail clear (id no longer resolves)", async function () {
+      const { grab } = trail.append({
+        ts: 1,
+        kind: "text",
+        text: "revoked",
+        source: { paperId: "1/TEST" },
+      });
+      trail.clear();
+      const response = await callTool("get_grab", { grab_id: grab.id });
+      assert.isTrue(response.result?.isError);
     });
 
     it("refuses retrieval for papers not in the trail", async function () {

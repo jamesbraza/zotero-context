@@ -11,7 +11,9 @@
  * receives one JSON response — no SSE, no session ids. A fresh SDK
  * `McpServer` is built per request and bridged through a single-exchange
  * Transport, so the SDK owns protocol correctness while the adapter owns
- * the socket.
+ * the socket. Deliberately lenient on MCP-Protocol-Version and Accept
+ * headers: with no session or stream negotiation there is nothing for
+ * them to select, and strictness would only break older clients.
  */
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import {
@@ -52,6 +54,18 @@ function rawId(raw: unknown): string | number | null {
   return null;
 }
 
+/** Constant-time equality for same-length strings: XOR-accumulates over
+ * every position so match position never short-circuits. The up-front
+ * length check is fine — token length is not secret. */
+function timingSafeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) {
+    diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return diff === 0;
+}
+
 /** Exported for tests; production traffic reaches it via the control
  * layer's lazy load, which also supplies `deps` from the main bundle's
  * grab-session state (see McpDeps). Routing and Host validation happen
@@ -78,7 +92,12 @@ export async function handleRequest(
     // Stateless: no SSE stream to GET, no session to DELETE
     return { status: 405, body: "", extraHeaders: { Allow: "POST" } };
   }
-  if (req.headers.get("authorization") !== `Bearer ${auth}`) {
+  // RFC 7235: the auth scheme is case-insensitive; the compare is
+  // constant-time so match position never leaks through response timing
+  const bearer = /^Bearer[ \t]+(.+)$/i.exec(
+    req.headers.get("authorization") ?? "",
+  );
+  if (!bearer || !timingSafeEqual(bearer[1]!, auth)) {
     return {
       status: 401,
       body: "",

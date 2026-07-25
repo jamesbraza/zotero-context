@@ -15,7 +15,7 @@ import { addCaptionStrip } from "../core/image";
 import { copyImage, copyText } from "./clipboard";
 import { registerChord } from "./hotkeys";
 import { guard, notify } from "./notify";
-import { paperInfoMap, trail } from "./grab-session";
+import { clearSession, paperInfoMap, trail } from "./grab-session";
 import { logError } from "../utils/log";
 
 let cursor: {
@@ -30,7 +30,7 @@ export function registerBundleDelivery() {
   registerChord("b", (ev) => void guard("Bundle", () => step(ev.shiftKey)));
   registerChord("x", () => {
     const n = trail.length;
-    trail.clear();
+    clearSession();
     watermark = 0;
     cursor = null;
     notify(n ? `Trail cleared (${n} grabs dropped)` : "Trail already empty");

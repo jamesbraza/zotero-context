@@ -15,6 +15,13 @@ export function paperInfoMap(): ReadonlyMap<string, PaperInfo> {
   return paperInfos;
 }
 
+/** Full session reset: the trail and the metadata gathered alongside it.
+ * Repopulation is automatic — every grab re-runs paperInfoFromItem. */
+export function clearSession(): void {
+  trail.clear();
+  paperInfos.clear();
+}
+
 export interface PaperRef {
   /** Stable paper identity for the trail (top-level item key). */
   paperId: string;

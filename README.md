@@ -172,13 +172,11 @@ Troubleshooting:
 
 ### Security
 
-Deliberate properties, in the spirit of the [MCP transport security guidance][mcp-security]:
-
-- Binds `127.0.0.1` only; foreign `Host`/`Origin` headers are rejected (DNS-rebinding defense).
-- Every request needs a bearer token minted on first enablement — no unauthenticated
-  localhost surface for other local processes or rebound web pages.
-- Retrieval is trail-scoped: the server structurally cannot browse your library or
-  filesystem, only papers you grabbed from this session.
+Off by default; binds `127.0.0.1` only with `Host`/`Origin` rejection
+(DNS-rebinding defense); a bearer token on every request; retrieval scoped to
+papers grabbed this session — in the spirit of the
+[MCP transport security guidance][mcp-security].
+Project-wide security model, data flows, and accepted risks: [SECURITY.md](SECURITY.md).
 
 ## Limitations (current)
 

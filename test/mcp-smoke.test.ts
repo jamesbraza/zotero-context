@@ -36,13 +36,36 @@ function rawRequest(port: number, requestText: string): Promise<string> {
     ]
       .getService(Ci.nsISocketTransportService)
       .createTransport([], "127.0.0.1", port, null, null);
-    const output = transport.openOutputStream(
-      Ci.nsITransport.OPEN_BLOCKING,
-      0,
-      0,
-    );
-    output.write(requestText, requestText.length);
-    output.close();
+    // Non-blocking chunked write: a blocking write of a large body (the 413
+    // test sends >1 MiB) deadlocks the process — the kernel socket buffer
+    // fills, the blocking write pins the main thread, and httpd.js reads on
+    // that same thread, so neither side can progress
+    const output = transport
+      .openOutputStream(0, 0, 0)
+      .QueryInterface(Ci.nsIAsyncOutputStream);
+    let written = 0;
+    const writeMore = () => {
+      try {
+        while (written < requestText.length) {
+          written += output.write(
+            requestText.slice(written),
+            requestText.length - written,
+          ) as number;
+        }
+        output.close();
+      } catch (e) {
+        if (
+          (e as { result?: number }).result ===
+          (Components.results.NS_BASE_STREAM_WOULD_BLOCK as number)
+        ) {
+          output.asyncWait({ onOutputStreamReady: writeMore }, 0, 0, thread);
+          return;
+        }
+        // A later timeout/EOF rejection is a no-op after this one
+        reject(e instanceof Error ? e : new Error(String(e)));
+      }
+    };
+    writeMore();
     const input = transport
       .openInputStream(0, 0, 0)
       .QueryInterface(Ci.nsIAsyncInputStream);
@@ -102,8 +125,22 @@ const LIST_GRABS = JSON.stringify({
   id: 1,
 });
 
+/** The running plugin instance (not this test bundle's module graph). */
+function runningAddon() {
+  return (Zotero as any).ZoteroContext;
+}
+
+/** Poll `cond` every 100 ms until true or `ms` elapses. */
+async function pollUntil(cond: () => boolean, ms = 5_000): Promise<boolean> {
+  const deadline = Date.now() + ms;
+  while (!cond() && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  return cond();
+}
+
 describe("mcp-smoke", function () {
-  let close: (() => void) | undefined;
+  let close: (() => Promise<void>) | undefined;
 
   before(function () {
     const deps: McpDeps = {
@@ -117,8 +154,8 @@ describe("mcp-smoke", function () {
     ).close;
   });
 
-  after(function () {
-    close?.();
+  after(async function () {
+    await close?.();
     trail.clear();
   });
 
@@ -143,6 +180,17 @@ describe("mcp-smoke", function () {
     assert.match(response, /^HTTP\/1\.1 401/);
   });
 
+  it("413s oversized bodies before they reach the gate", async function () {
+    this.timeout(15_000);
+    // One byte over the adapter's MAX_BODY_BYTES cap
+    const oversized = "x".repeat(1_048_577);
+    const response = await rawRequest(
+      PORT,
+      post(`127.0.0.1:${PORT}`, oversized, TOKEN),
+    );
+    assert.match(response, /^HTTP\/1\.1 413/);
+  });
+
   it("serves an authorized tool call with UTF-8 intact", async function () {
     this.timeout(15_000);
     trail.clear();
@@ -162,30 +210,126 @@ describe("mcp-smoke", function () {
   });
 
   it("pref enablement lazy-loads the handler bundle and serves requests", async function () {
-    this.timeout(15_000);
+    this.timeout(20_000);
     // Drive the RUNNING plugin (not the test bundle's imports): setting the
     // pref fires its observer, which must loadSubScript the handler bundle
     // and bind the socket — the end-to-end lazy path users take
-    const runningAddon = (Zotero as any).ZoteroContext;
-    const prefix = runningAddon.data.config.prefsPrefix as string;
+    const running = runningAddon();
+    const prefix = running.data.config.prefsPrefix as string;
     const LAZY_PORT = 23988;
+    const MOVED_PORT = 23989;
     Zotero.Prefs.set(`${prefix}.mcpPort`, LAZY_PORT, true);
     Zotero.Prefs.set(`${prefix}.mcpToken`, TOKEN, true);
     try {
       Zotero.Prefs.set(`${prefix}.mcpEnabled`, true, true);
       // Pref observers may dispatch asynchronously — give the lazy load a
       // moment before treating the missing publish as a failure
-      const deadline = Date.now() + 5_000;
-      while (!runningAddon.data.mcpHandler && Date.now() < deadline) {
-        await new Promise((resolve) => setTimeout(resolve, 100));
-      }
       assert.ok(
-        runningAddon.data.mcpHandler,
+        await pollUntil(() => Boolean(running.data.mcpHandler)),
         "lazy bundle published its handler into the plugin sandbox",
       );
       const response = await rawRequest(
         LAZY_PORT,
         post(`127.0.0.1:${LAZY_PORT}`, LIST_GRABS, TOKEN),
+      );
+      assert.match(response, /^HTTP\/1\.1 200/);
+
+      // Port change restarts onto the new port: the observer drains the
+      // old socket, then re-binds
+      Zotero.Prefs.set(`${prefix}.mcpPort`, MOVED_PORT, true);
+      assert.ok(
+        await pollUntil(() => {
+          const status = running.api.mcp.status();
+          return status.state === "running" && status.port === MOVED_PORT;
+        }),
+        "server restarted on the new port",
+      );
+      const moved = await rawRequest(
+        MOVED_PORT,
+        post(`127.0.0.1:${MOVED_PORT}`, LIST_GRABS, TOKEN),
+      );
+      assert.match(moved, /^HTTP\/1\.1 200/);
+      // The old port no longer answers MCP: refused outright or a non-200
+      let oldPortServes = false;
+      try {
+        const old = await rawRequest(
+          LAZY_PORT,
+          post(`127.0.0.1:${LAZY_PORT}`, LIST_GRABS, TOKEN),
+        );
+        oldPortServes = /^HTTP\/1\.1 200/.test(old);
+      } catch {
+        // Connection refused: exactly what a drained socket should do
+      }
+      assert.isFalse(oldPortServes, "old port stopped serving");
+    } finally {
+      Zotero.Prefs.set(`${prefix}.mcpEnabled`, false, true);
+      Zotero.Prefs.clear(`${prefix}.mcpPort`, true);
+      Zotero.Prefs.clear(`${prefix}.mcpToken`, true);
+    }
+  });
+
+  it("gracefully disables on bind failure and recovers on a free port", async function () {
+    this.timeout(20_000);
+    const running = runningAddon();
+    const prefix = running.data.config.prefsPrefix as string;
+    const BUSY_PORT = 23990;
+    const FREE_PORT = 23991;
+    // Occupy the port so the plugin's bind must fail
+    const blocker = startHttpServer(BUSY_PORT, "/blocker", () =>
+      Promise.resolve({ status: 200, body: "" }),
+    );
+    Zotero.Prefs.set(`${prefix}.mcpToken`, TOKEN, true);
+    Zotero.Prefs.set(`${prefix}.mcpPort`, BUSY_PORT, true);
+    try {
+      Zotero.Prefs.set(`${prefix}.mcpEnabled`, true, true);
+      assert.ok(
+        await pollUntil(() => running.api.mcp.status().state === "error"),
+        "bind failure surfaced as an error status",
+      );
+      assert.include(
+        running.api.mcp.status().message as string,
+        String(BUSY_PORT),
+        "error message names the contested port",
+      );
+      // Recovery: moving to a free port restarts cleanly
+      Zotero.Prefs.set(`${prefix}.mcpPort`, FREE_PORT, true);
+      assert.ok(
+        await pollUntil(() => running.api.mcp.status().state === "running"),
+        "server recovered on the free port",
+      );
+      const response = await rawRequest(
+        FREE_PORT,
+        post(`127.0.0.1:${FREE_PORT}`, LIST_GRABS, TOKEN),
+      );
+      assert.match(response, /^HTTP\/1\.1 200/);
+    } finally {
+      Zotero.Prefs.set(`${prefix}.mcpEnabled`, false, true);
+      Zotero.Prefs.clear(`${prefix}.mcpPort`, true);
+      Zotero.Prefs.clear(`${prefix}.mcpToken`, true);
+      await blocker.close();
+    }
+  });
+
+  it("re-mints a malformed token pref instead of trusting it", async function () {
+    this.timeout(20_000);
+    const running = runningAddon();
+    const prefix = running.data.config.prefsPrefix as string;
+    const REMINT_PORT = 23992;
+    // Long enough to pass a naive length check, but not hex: must be
+    // replaced, never served as a credential
+    Zotero.Prefs.set(`${prefix}.mcpToken`, "x".repeat(40), true);
+    Zotero.Prefs.set(`${prefix}.mcpPort`, REMINT_PORT, true);
+    try {
+      Zotero.Prefs.set(`${prefix}.mcpEnabled`, true, true);
+      assert.ok(
+        await pollUntil(() => running.api.mcp.status().state === "running"),
+        "server started",
+      );
+      const minted = Zotero.Prefs.get(`${prefix}.mcpToken`, true) as string;
+      assert.match(minted, /^[0-9a-f]{48}$/, "token was re-minted");
+      const response = await rawRequest(
+        REMINT_PORT,
+        post(`127.0.0.1:${REMINT_PORT}`, LIST_GRABS, minted),
       );
       assert.match(response, /^HTTP\/1\.1 200/);
     } finally {
