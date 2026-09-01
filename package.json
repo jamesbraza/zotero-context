@@ -48,7 +48,7 @@
     "knip": "^6.29.0",
     "mocha": "^11.7.6",
     "prettier": "^3.9.6",
-    "typescript": "^6.0.3",
+    "typescript": "^7.0.2",
     "typescript-eslint": "^8.65.0",
     "zotero-plugin-scaffold": "^0.8.7",
     "zotero-types": "^4.1.3"
