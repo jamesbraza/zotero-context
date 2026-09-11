@@ -19,6 +19,9 @@
 - [x] 3.1 Toolbar button + hotkey registration shipped (toggle semantics); press-and-hold pref
       deferred to backlog 10.2
 - [x] 3.2 Mode state machine with visible indication (button state, cursor) and clean teardown of overlays/listeners on exit and Escape
+- [x] 3.3 Cross-platform hotkey redesign (2026-07-29): quote-leader sequences (`Ctrl+' G` /
+      `Cmd+' G` etc.), physical-key matching, pure leader state machine + tests; research and
+      rationale compiled in `/DESIGN.md`
 
 ## 4. Area grab + provenance + clipboard floor (first usable build)
 

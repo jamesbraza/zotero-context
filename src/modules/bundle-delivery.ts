@@ -1,19 +1,19 @@
 /**
- * Session-bundle delivery (see specs: grab-trail, clipboard-delivery): one
- * hotkey ferries accumulated grabs.
+ * Session-bundle delivery (see specs: grab-trail, clipboard-delivery): three
+ * leader sequences (Ctrl+' / Cmd+' prefix) ferry accumulated grabs.
  *
- *   Ctrl+Alt+B       — bundle the grabs since the last bundle (delta); when
- *                      the bundle has image grabs, repeated presses cycle
- *                      each captioned image onto the clipboard. The cycle
- *                      persists until its images are exhausted (no timeout).
- *   Ctrl+Alt+Shift+B — full session recap (for re-seeding a fresh chat);
- *                      also abandons any in-progress image cycle.
- *   Ctrl+Alt+X       — reset: clear the session trail.
+ *   prefix B — bundle the grabs since the last bundle (delta); when the
+ *              bundle has image grabs, repeated presses cycle each captioned
+ *              image onto the clipboard. The cycle persists until its images
+ *              are exhausted (no timeout).
+ *   prefix R — full session recap (for re-seeding a fresh chat); also
+ *              abandons any in-progress image cycle.
+ *   prefix X — reset: clear the session trail.
  */
 import { renderBundle, type BundleRender } from "../core/bundle";
 import { addCaptionStrip } from "../core/image";
 import { copyImage, copyText } from "./clipboard";
-import { registerChord } from "./hotkeys";
+import { formatChord, registerLeaderAction } from "./hotkeys";
 import { guard, notify } from "./notify";
 import { clearSession, paperInfoMap, trail } from "./grab-session";
 import { logError } from "../utils/log";
@@ -27,8 +27,9 @@ let cursor: {
 let watermark = 0;
 
 export function registerBundleDelivery() {
-  registerChord("b", (ev) => void guard("Bundle", () => step(ev.shiftKey)));
-  registerChord("x", () => {
+  registerLeaderAction("b", () => void guard("Bundle", () => step(false)));
+  registerLeaderAction("r", () => void guard("Recap", () => step(true)));
+  registerLeaderAction("x", () => {
     const n = trail.length;
     clearSession();
     watermark = 0;
@@ -38,7 +39,7 @@ export function registerBundleDelivery() {
 }
 
 async function step(fullRecap: boolean) {
-  // Mid-bundle: cycle the next image (a shift press restarts instead)
+  // Mid-bundle: cycle the next image (a recap restarts instead)
   if (!fullRecap && cursor) {
     // In bounds: cursor is only created as { next: 0 } over nonempty images,
     // and nulled below the moment next reaches images.length (left === 0)
@@ -69,7 +70,8 @@ async function step(fullRecap: boolean) {
     notify(
       fullRecap
         ? "No grabs this session yet"
-        : "No new grabs since the last bundle (Ctrl+Alt+Shift+B for full recap)",
+        : "No new grabs since the last bundle " +
+            `(${formatChord("r")} for full recap)`,
       false,
     );
     return;
@@ -89,7 +91,7 @@ async function step(fullRecap: boolean) {
     cursor = { images: bundle.images, next: 0 };
     notify(
       `${what} text copied (${grabs.length} grabs) — paste it, then press ` +
-        `Ctrl+Alt+B for ${bundle.images.length} image(s)`,
+        `${formatChord("b")} for ${bundle.images.length} image(s)`,
     );
   } else {
     notify(`${what} text copied (${grabs.length} grabs) — paste it`);

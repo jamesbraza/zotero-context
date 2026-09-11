@@ -35,7 +35,7 @@ import {
   trail,
   type PaperRef,
 } from "./grab-session";
-import { registerChord } from "./hotkeys";
+import { formatChord, registerLeaderAction } from "./hotkeys";
 import { guard, notify } from "./notify";
 import {
   getPageTargets,
@@ -136,7 +136,7 @@ export function registerGrabMode() {
       button.title =
         "Grab mode (Zotero Context): click text to copy it (shift-click " +
         "extends), or click two corners to copy a region; Esc cancels a " +
-        "pending corner, then exits (Ctrl+Alt+G toggles)";
+        `pending corner, then exits (${formatChord("g")} toggles)`;
       button.textContent = "⌖";
       button.style.fontSize = "16px";
       button.addEventListener("click", () => {
@@ -150,7 +150,7 @@ export function registerGrabMode() {
   );
 
   // Toggle hotkey for the focused reader tab (hold-semantics pref is backlog)
-  registerChord("g", () => {
+  registerLeaderAction("g", () => {
     const reader = Zotero.Reader.getByTabID(
       ztoolkit.getGlobal("Zotero_Tabs").selectedID,
     );

@@ -4,7 +4,7 @@
 
 ### Requirement: Entering and exiting grab mode
 
-The plugin SHALL provide a grab mode in the Zotero reader that can be entered and exited via a reader toolbar button and via a press-once toggle hotkey. (A user-configurable press-and-hold semantics is planned but not required for v0.1 — tracked in the tasks backlog.)
+The plugin SHALL provide a grab mode in the Zotero reader that can be entered and exited via a reader toolbar button and via a toggle hotkey — the leader sequence `Ctrl+' G` (`Cmd+' G` on macOS), matched by physical key position. (A user-configurable press-and-hold semantics is planned but not required for v0.1 — tracked in the tasks backlog.)
 
 #### Scenario: Toggle via toolbar button
 
@@ -22,6 +22,11 @@ The plugin SHALL provide a grab mode in the Zotero reader that can be entered an
 
 - **WHEN** grab mode is active (toggle semantics) and the user presses Escape
 - **THEN** grab mode deactivates and any in-progress grab (e.g. a first area-grab corner) is cancelled
+
+#### Scenario: Escape resolves an armed leader prefix first
+
+- **WHEN** grab mode is active, a leader prefix (`Ctrl+'` / `Cmd+'`) is armed, and the user presses Escape
+- **THEN** the pending prefix is cancelled and grab mode stays active (a second Escape exits as usual)
 
 ### Requirement: Visible mode indication
 

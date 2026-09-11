@@ -23,7 +23,13 @@ push it via the clipboard, or let MCP-capable chats
 
 Everything revolves around **grab mode** in the PDF reader: click the
 ![grab mode button (⌖)](docs/grab-mode-button.svg) button
-in the reader toolbar (or press `Ctrl+Alt+G`), and the cursor becomes a crosshair.
+in the reader toolbar (or press the grab hotkey),
+and the cursor becomes a crosshair.
+
+Hotkeys are quote-key **leader sequences**:
+tap the leader (`Ctrl+'` on Windows/Linux, `Cmd+'` on macOS), then a mnemonic letter;
+grabs paste as quotes, so every action starts with the quote key.
+Why this scheme (and not `Ctrl+Alt+…` or `Shift+…`): [DESIGN.md](DESIGN.md).
 
 - **Sentence snap**: hover text and the sentence under the cursor glows;
   click to copy it as quoted text.
@@ -51,11 +57,11 @@ in the reader toolbar (or press `Ctrl+Alt+G`), and the cursor becomes a crosshai
   ![A grabbed figure with the provenance caption strip along the bottom](docs/image-grab-example.svg)
 
 - **Session bundle**: grabs accumulate in an in-memory trail.
-  `Ctrl+Alt+B` copies everything since your last bundle as one text block
-  (image grabs cycle onto the clipboard with repeated presses).
-  `Ctrl+Alt+Shift+B` copies a full-session recap for seeding a fresh chat;
-  `Ctrl+Alt+X` clears the trail.
-- **Paper intro**: `Ctrl+Alt+I` puts the paper's PDF file on the clipboard;
+  The leader then `B` copies everything since your last bundle as one text block
+  (image grabs cycle onto the clipboard with repeated presses);
+  `R` copies a full-session recap for seeding a fresh chat;
+  `X` clears the trail.
+- **Paper intro**: the leader then `I` puts the paper's PDF file on the clipboard;
   pasting into claude.ai attaches it.
   Press again within a minute for an intro message (citation + abstract) to open the chat with.
 - **Scanned PDFs**: sentence snap degrades to per-line snap targets automatically.
@@ -67,16 +73,22 @@ in the reader toolbar (or press `Ctrl+Alt+G`), and the cursor becomes a crosshai
 
 ### Hotkeys
 
-| Hotkey             | Action                                            |
-| ------------------ | ------------------------------------------------- |
-| `Ctrl+Alt+G` or ⌖  | Toggle grab mode in the focused reader tab        |
-| Click              | Grab hovered sentence (or place an area corner)   |
-| `Shift`+click      | Extend the text grab through the clicked sentence |
-| `Esc`              | Cancel pending corner, then exit grab mode        |
-| `Ctrl+Alt+B`       | Copy bundle of grabs since last bundle            |
-| `Ctrl+Alt+Shift+B` | Copy full-session recap                           |
-| `Ctrl+Alt+X`       | Clear the session trail                           |
-| `Ctrl+Alt+I`       | Copy paper PDF; press again for the intro message |
+Every sequence is two presses in a row, never three keys held at once:
+first the two-key leader chord (hold `Ctrl` and tap `'`; on macOS, `Cmd` and `'`),
+then tap the letter within 2 seconds.
+Keeping `Ctrl`/`Cmd` held down through the letter also works;
+`Esc` cancels an armed leader.
+
+| Windows/Linux   | macOS          | Action                                            |
+| --------------- | -------------- | ------------------------------------------------- |
+| `Ctrl+' G` or ⌖ | `Cmd+' G` or ⌖ | Toggle grab mode in the focused reader tab        |
+| Click           | Click          | Grab hovered sentence (or place an area corner)   |
+| `Shift`+click   | same           | Extend the text grab through the clicked sentence |
+| `Esc`           | same           | Cancel pending corner, then exit grab mode        |
+| `Ctrl+' B`      | `Cmd+' B`      | Copy bundle of grabs since last bundle            |
+| `Ctrl+' R`      | `Cmd+' R`      | Copy full-session recap                           |
+| `Ctrl+' X`      | `Cmd+' X`      | Clear the session trail                           |
+| `Ctrl+' I`      | `Cmd+' I`      | Copy paper PDF; press again for the intro message |
 
 ## MCP server (pull delivery)
 
@@ -182,6 +194,9 @@ Project-wide security model, data flows, and accepted risks: [SECURITY.md](SECUR
 
 - Grabs are ephemeral: nothing is written to your library, and the trail resets with Zotero.
 - Hotkeys are fixed for now; preferences for bindings and press-and-hold are planned.
+  Sequences match physical key positions,
+  so on non-US layouts the leader is "the key right of `L`" whatever it's labeled (`Ä` on QWERTZ, `ù` on AZERTY);
+  see [DESIGN.md](DESIGN.md) for the full shortcut rationale.
 - Element-picking (click a figure to auto-bound it) is on the roadmap;
   see `openspec/changes/add-context-ferry/` for the full plan.
 

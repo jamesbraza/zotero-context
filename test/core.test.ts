@@ -26,6 +26,15 @@ import {
   truncateToWidth,
   wrapToWidth,
 } from "../src/core/image";
+import {
+  advance,
+  formatSequence,
+  isModifierOnly,
+  isPrefix,
+  LEADER_TIMEOUT_MS,
+  matchAction,
+  type LeaderKeyEvent,
+} from "../src/core/leader";
 
 const PAPER: PaperInfo = {
   title: "Attention Is All You Need",
@@ -250,6 +259,186 @@ const GATE_CASES: {
     apiAbsent: true,
     expected: false,
   },
+];
+
+/** Keydown with only the named fields overridden. */
+function keyEv(overrides: Partial<LeaderKeyEvent>): LeaderKeyEvent {
+  return {
+    type: "keydown",
+    repeat: false,
+    code: "",
+    ctrlKey: false,
+    altKey: false,
+    metaKey: false,
+    shiftKey: false,
+    ...overrides,
+  };
+}
+
+const LEADER_LETTERS = ["g", "b", "r", "x", "i"];
+
+const PREFIX_CASES: {
+  name: string;
+  ev: LeaderKeyEvent;
+  isMac: boolean;
+  expected: boolean;
+}[] = [
+  {
+    name: "Cmd+' on Mac",
+    ev: keyEv({ code: "Quote", metaKey: true }),
+    isMac: true,
+    expected: true,
+  },
+  {
+    name: "Ctrl+' elsewhere",
+    ev: keyEv({ code: "Quote", ctrlKey: true }),
+    isMac: false,
+    expected: true,
+  },
+  {
+    name: "wrong accel on Mac (Ctrl)",
+    ev: keyEv({ code: "Quote", ctrlKey: true }),
+    isMac: true,
+    expected: false,
+  },
+  {
+    name: "wrong accel elsewhere (Meta)",
+    ev: keyEv({ code: "Quote", metaKey: true }),
+    isMac: false,
+    expected: false,
+  },
+  {
+    name: "both accels held",
+    ev: keyEv({ code: "Quote", ctrlKey: true, metaKey: true }),
+    isMac: false,
+    expected: false,
+  },
+  {
+    name: "Shift disqualifies",
+    ev: keyEv({ code: "Quote", metaKey: true, shiftKey: true }),
+    isMac: true,
+    expected: false,
+  },
+  {
+    name: "Alt disqualifies",
+    ev: keyEv({ code: "Quote", metaKey: true, altKey: true }),
+    isMac: true,
+    expected: false,
+  },
+  {
+    name: "wrong physical key",
+    ev: keyEv({ code: "KeyG", metaKey: true }),
+    isMac: true,
+    expected: false,
+  },
+  {
+    name: "keyup ignored",
+    ev: keyEv({ type: "keyup", code: "Quote", metaKey: true }),
+    isMac: true,
+    expected: false,
+  },
+  {
+    name: "key repeat ignored",
+    ev: keyEv({ repeat: true, code: "Quote", metaKey: true }),
+    isMac: true,
+    expected: false,
+  },
+];
+
+const ACTION_CASES: {
+  name: string;
+  ev: LeaderKeyEvent;
+  isMac: boolean;
+  expected: string | null;
+}[] = [
+  {
+    name: "bare letter",
+    ev: keyEv({ code: "KeyG" }),
+    isMac: true,
+    expected: "g",
+  },
+  {
+    name: "Shift passes through",
+    ev: keyEv({ code: "KeyB", shiftKey: true }),
+    isMac: false,
+    expected: "b",
+  },
+  {
+    name: "accel may stay held (Ctrl on Windows)",
+    ev: keyEv({ code: "KeyG", ctrlKey: true }),
+    isMac: false,
+    expected: "g",
+  },
+  {
+    name: "accel may stay held (Cmd on Mac)",
+    ev: keyEv({ code: "KeyG", metaKey: true }),
+    isMac: true,
+    expected: "g",
+  },
+  {
+    name: "wrong accel disqualifies (Ctrl on Mac)",
+    ev: keyEv({ code: "KeyG", ctrlKey: true }),
+    isMac: true,
+    expected: null,
+  },
+  {
+    name: "wrong accel disqualifies (Meta on Windows)",
+    ev: keyEv({ code: "KeyG", metaKey: true }),
+    isMac: false,
+    expected: null,
+  },
+  {
+    name: "Alt disqualifies",
+    ev: keyEv({ code: "KeyG", altKey: true }),
+    isMac: true,
+    expected: null,
+  },
+  {
+    name: "unregistered letter",
+    ev: keyEv({ code: "KeyQ" }),
+    isMac: true,
+    expected: null,
+  },
+  {
+    name: "keyup ignored",
+    ev: keyEv({ type: "keyup", code: "KeyG" }),
+    isMac: true,
+    expected: null,
+  },
+  {
+    name: "key repeat ignored",
+    ev: keyEv({ repeat: true, code: "KeyG" }),
+    isMac: true,
+    expected: null,
+  },
+];
+
+const MODIFIER_ONLY_CASES: { code: string; expected: boolean }[] = [
+  { code: "ShiftLeft", expected: true },
+  { code: "ControlRight", expected: true },
+  { code: "AltLeft", expected: true },
+  { code: "MetaRight", expected: true },
+  { code: "OSLeft", expected: true },
+  { code: "KeyG", expected: false },
+  { code: "Escape", expected: false },
+];
+
+const LEADER_PREFIX_EV = keyEv({ code: "Quote", metaKey: true });
+
+/** Freshly-armed leader state: prefix pressed at t=1000 on a Mac. */
+function armLeader() {
+  return advance(null, LEADER_PREFIX_EV, 1000, LEADER_LETTERS, true);
+}
+
+const SEQUENCE_LABEL_CASES: {
+  letter: string;
+  isMac: boolean;
+  expected: string;
+}[] = [
+  { letter: "g", isMac: true, expected: "Cmd+' G" },
+  { letter: "g", isMac: false, expected: "Ctrl+' G" },
+  { letter: "r", isMac: true, expected: "Cmd+' R" },
+  { letter: "x", isMac: false, expected: "Ctrl+' X" },
 ];
 
 describe("core", function () {
@@ -584,6 +773,141 @@ describe("core", function () {
         assert.equal(truncateToWidth(ctx, input, 100), expected);
       });
     }
+  });
+
+  describe("core/leader", function () {
+    for (const { name, ev, isMac, expected } of PREFIX_CASES) {
+      it(`isPrefix: ${name}`, function () {
+        assert.equal(isPrefix(ev, isMac), expected);
+      });
+    }
+
+    for (const { name, ev, isMac, expected } of ACTION_CASES) {
+      it(`matchAction: ${name}`, function () {
+        assert.equal(matchAction(ev, LEADER_LETTERS, isMac), expected);
+      });
+    }
+
+    for (const { code, expected } of MODIFIER_ONLY_CASES) {
+      it(`isModifierOnly: ${code}`, function () {
+        assert.equal(isModifierOnly(keyEv({ code })), expected);
+      });
+    }
+
+    for (const { letter, isMac, expected } of SEQUENCE_LABEL_CASES) {
+      it(`formatSequence: ${expected}`, function () {
+        assert.equal(formatSequence(letter, isMac), expected);
+      });
+    }
+
+    it("arms on the prefix, then fires the action letter", function () {
+      const armed = armLeader();
+      assert.deepEqual(armed.effect, { kind: "arm" });
+      assert.equal(armed.state?.pendingUntil, 1000 + LEADER_TIMEOUT_MS);
+      const fired = advance(
+        armed.state,
+        keyEv({ code: "KeyG" }),
+        1500,
+        LEADER_LETTERS,
+        true,
+      );
+      assert.deepEqual(fired.effect, { kind: "fire", letter: "g" });
+      assert.isNull(fired.state);
+    });
+
+    it("fires at the timeout boundary, expires past it", function () {
+      const until = 1000 + LEADER_TIMEOUT_MS;
+      const atEdge = advance(
+        armLeader().state,
+        keyEv({ code: "KeyB" }),
+        until,
+        LEADER_LETTERS,
+        true,
+      );
+      assert.deepEqual(atEdge.effect, { kind: "fire", letter: "b" });
+      const late = advance(
+        armLeader().state,
+        keyEv({ code: "KeyB" }),
+        until + 1,
+        LEADER_LETTERS,
+        true,
+      );
+      assert.deepEqual(late.effect, { kind: "pass" });
+      assert.isNull(late.state);
+    });
+
+    it("fires with the accel still held from the prefix", function () {
+      const step = advance(
+        armLeader().state,
+        keyEv({ code: "KeyB", metaKey: true }),
+        1500,
+        LEADER_LETTERS,
+        true,
+      );
+      assert.deepEqual(step.effect, { kind: "fire", letter: "b" });
+      assert.isNull(step.state);
+    });
+
+    it("Escape while armed is consumed, not passed through", function () {
+      const step = advance(
+        armLeader().state,
+        keyEv({ code: "Escape" }),
+        1500,
+        LEADER_LETTERS,
+        true,
+      );
+      assert.deepEqual(step.effect, { kind: "cancel" });
+      assert.isNull(step.state);
+    });
+
+    it("an unregistered key disarms and passes through untouched", function () {
+      const step = advance(
+        armLeader().state,
+        keyEv({ code: "KeyQ" }),
+        1500,
+        LEADER_LETTERS,
+        true,
+      );
+      assert.deepEqual(step.effect, { kind: "pass" });
+      assert.isNull(step.state);
+    });
+
+    it("modifier keydowns and keyups leave the armed state alone", function () {
+      const armed = armLeader().state;
+      for (const ev of [
+        keyEv({ code: "ShiftLeft", shiftKey: true }),
+        keyEv({ type: "keyup", code: "Quote", metaKey: true }),
+        keyEv({ repeat: true, code: "KeyG" }),
+      ]) {
+        const step = advance(armed, ev, 1500, LEADER_LETTERS, true);
+        assert.deepEqual(step.effect, { kind: "pass" });
+        assert.deepEqual(step.state, armed);
+      }
+    });
+
+    it("a second prefix press re-arms with a fresh deadline", function () {
+      const rearmed = advance(
+        armLeader().state,
+        LEADER_PREFIX_EV,
+        2000,
+        LEADER_LETTERS,
+        true,
+      );
+      assert.deepEqual(rearmed.effect, { kind: "arm" });
+      assert.equal(rearmed.state?.pendingUntil, 2000 + LEADER_TIMEOUT_MS);
+    });
+
+    it("idle: action letters pass through", function () {
+      const step = advance(
+        null,
+        keyEv({ code: "KeyG" }),
+        1000,
+        LEADER_LETTERS,
+        true,
+      );
+      assert.deepEqual(step.effect, { kind: "pass" });
+      assert.isNull(step.state);
+    });
   });
 
   describe("adapter/dataUrlBytes", function () {

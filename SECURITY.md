@@ -59,7 +59,7 @@ When it is on:
   The server can return content and PDFs only for papers
   you grabbed from during this session.
   It has no way to list or read the rest of your Zotero library or your files,
-  and clearing the session trail (`Ctrl+Alt+X`) revokes access
+  and clearing the session trail revokes access
   to everything captured so far.
 - **Oversized requests are rejected** before any processing.
 - The `fetch_pdf` tool returns the PDF's location on disk

@@ -126,6 +126,8 @@ Advisory only, no "current tab" pointer — the trail is the stable identity. Pr
 
 Toolbar button + hotkey, with a pref choosing hotkey semantics (toggle vs. press-and-hold). Visible indicator (toolbar state + cursor change) whenever active. Grab mode suppresses its overlays instantly on exit; it does not modify Zotero's native selection/annotation tools, it sits above them.
 
+**Amended 2026-07-29 (cross-platform pass):** all hotkeys are now leader sequences — `Ctrl+'` (Windows/Linux) / `Cmd+'` (macOS) then one mnemonic letter — replacing the Windows-era fixed `Ctrl+Alt+<letter>` chords. Drivers: `Ctrl+Alt+G` collides with the reader's own go-to-page box, macOS Option rewrites `ev.key` (so matching moved to physical key codes), AltGr shadows Ctrl+Alt on European layouts, and sequences must keep working while a text field has focus. Full availability research (Zotero core, plugin ecosystem, Chrome, OS reservations) and rejected alternatives: `/DESIGN.md`.
+
 **Spike S1/S3 findings (2026-07-21, Windows Zotero → claude.ai in Brave, via test/spike shortcuts):**
 
 - **S1 resolved — mixed HTML single-paste does NOT work**: claude.ai ingests the HTML flavor's text (formatting preserved) but silently drops embedded `data:` URI images. Session bundle therefore ships as _text bundle + sequential image copies_ on the clipboard path; one-action multi-grab batching with images is exclusively MCP's job (D7).
@@ -150,6 +152,6 @@ Greenfield feature on a scaffold repo; no migration. Ship order inside v0.1: spi
 - S1: does an HTML clipboard flavor with embedded images paste into claude.ai as text + attached images?
 - S2: exact working internals paths on current Zotero 7 (chars via `getPageData`, outline, page canvas access) — verify in a throwaway build first.
 - S3: does `addFile(pdf)` + paste attach the PDF in claude.ai (per platform)?
-- ~~Default hotkey choice and default MCP port~~ — resolved: hotkeys shipped fixed (binding pref is backlog 10.2); MCP port defaults to 23122 (D7, amended; 23121 is taken by existing AI-bridge plugins).
+- ~~Default hotkey choice and default MCP port~~ — resolved: hotkeys shipped fixed, later redesigned to quote-leader sequences (D8 amendment; rationale in `/DESIGN.md`; binding pref remains backlog 10.2); MCP port defaults to 23122 (D7, amended; 23121 is taken by existing AI-bridge plugins).
 - ~~Whether `fetch_pdf` returns a filesystem path or base64 content~~ — resolved: `mode` tool parameter, `path` default, capped base64 (D7, amended); not profile-dependent.
 - Element-picking (roadmap): docling-class local Python sidecar (plugin-managed process) vs. small ONNX layout model in-process (e.g. DocLayout-YOLO export). Constraint either way: local-only, small, optional, two-click box as fallback. Decide when that feature is scheduled; v0.1 only needs the overlay/hit-test seam to accept a second hit-test source, which the sentence-rect design already provides.
