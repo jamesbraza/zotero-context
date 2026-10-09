@@ -15,7 +15,7 @@ jobs:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - name: Setup JS
-        uses: zotero-plugin-dev/workflows/setup-js@v1.0.0
+        uses: zotero-plugin-dev/workflows/setup-js@v1.1.0
       - uses: j178/prek-action@v2
 
   build:
@@ -24,7 +24,7 @@ jobs:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - name: Setup JS
-        uses: zotero-plugin-dev/workflows/setup-js@v1.0.0
+        uses: zotero-plugin-dev/workflows/setup-js@v1.1.0
       - name: Run Build
         run: npm run build
       # typings/ is committed so typecheck works without a build (editors,
@@ -44,7 +44,7 @@ jobs:
       - build
     steps:
       - name: Setup JS
-        uses: zotero-plugin-dev/workflows/setup-js@v1.0.0
+        uses: zotero-plugin-dev/workflows/setup-js@v1.1.0
       # Scaffold caches chai.js here; a warm cache also silences its
       # cold-start "No local chai.js found" notice
       - name: Cache scaffold test libraries
