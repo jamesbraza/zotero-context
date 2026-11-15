@@ -408,6 +408,64 @@ describe("core", function () {
       assert.equal(ranges[1].text, "Done.");
     });
 
+    it("splits after a superscript footnote marker, keeping it in the sentence", function () {
+      const ranges = sdtSentenceRanges(
+        sdt([
+          {
+            type: "paragraph",
+            content: [
+              { text: "First sentence." },
+              { text: "1", style: { sup: true } },
+              { text: " Second sentence." },
+            ],
+          },
+        ]),
+      );
+      assert.deepEqual(
+        ranges.map((r) => r.text),
+        ["First sentence.1", "Second sentence."],
+      );
+      // The marker's glyph stays in the first sentence's range
+      assert.deepEqual(ranges[0].parts, [{ start: [0, 0, 0], end: [0, 1, 1] }]);
+      assert.deepEqual(ranges[1].parts, [
+        { start: [0, 2, 1], end: [0, 2, 17] },
+      ]);
+    });
+
+    it("splits after an unstyled Unicode superscript marker", function () {
+      const ranges = sdtSentenceRanges(
+        sdt([
+          {
+            type: "paragraph",
+            content: [{ text: "Shown before.\u00B2 Then more." }],
+          },
+        ]),
+      );
+      assert.deepEqual(
+        ranges.map((r) => r.text),
+        ["Shown before.\u00B2", "Then more."],
+      );
+    });
+
+    it("leaves superscript text that isn't a marker alone", function () {
+      const ranges = sdtSentenceRanges(
+        sdt([
+          {
+            type: "paragraph",
+            content: [
+              { text: "The 5" },
+              { text: "th", style: { sup: true } },
+              { text: " layer is deep. Next one." },
+            ],
+          },
+        ]),
+      );
+      assert.deepEqual(
+        ranges.map((r) => r.text),
+        ["The 5th layer is deep.", "Next one."],
+      );
+    });
+
     it("prunes excluded flow and images, keeps auxiliary flow", function () {
       const ranges = sdtSentenceRanges(
         sdt([
@@ -431,18 +489,18 @@ describe("core", function () {
       assert.deepEqual(ranges[0].parts[0].start, [2, 0, 0]);
     });
 
-    it("joins part chains across interleaved blocks, dropping line-break hyphens", function () {
+    it("joins part chains across interleaved blocks", function () {
       const ranges = sdtSentenceRanges(
         sdt([
           {
             type: "paragraph",
-            content: [{ text: "The model is fast and accu-" }],
+            content: [{ text: "The model is fast and" }],
             nextPart: [2],
           },
           { type: "caption", content: [{ text: "Figure 1: A plot." }] },
           {
             type: "paragraph",
-            content: [{ text: "rate. Next sentence." }],
+            content: [{ text: "accurate. Next sentence." }],
             previousPart: [0],
           },
         ]),
@@ -455,15 +513,134 @@ describe("core", function () {
           "Figure 1: A plot.",
         ],
       );
-      // The cross-part sentence is cut back into one range per part, and the
-      // dropped hyphen (offset 26) is outside the first part's range
+      // The cross-part sentence is cut back into one range per part, skipping
+      // the caption between them
       assert.deepEqual(ranges[0].parts, [
-        { start: [0, 0, 0], end: [0, 0, 26] },
-        { start: [2, 0, 0], end: [2, 0, 5] },
+        { start: [0, 0, 0], end: [0, 0, 21] },
+        { start: [2, 0, 0], end: [2, 0, 9] },
       ]);
       assert.deepEqual(ranges[1].parts, [
-        { start: [2, 0, 6], end: [2, 0, 20] },
+        { start: [2, 0, 10], end: [2, 0, 24] },
       ]);
+    });
+
+    it("keeps a hyphenated compound whole when the break follows a hyphen", function () {
+      const ranges = sdtSentenceRanges(
+        sdt([
+          {
+            type: "paragraph",
+            content: [{ text: "Beats state-" }],
+            nextPart: [1],
+          },
+          {
+            type: "paragraph",
+            content: [{ text: "of-the-art methods." }],
+            previousPart: [0],
+          },
+        ]),
+      );
+      assert.deepEqual(
+        ranges.map((r) => r.text),
+        ["Beats state-of-the-art methods."],
+      );
+    });
+
+    it("never drops a non-breaking hyphen at a part break", function () {
+      const ranges = sdtSentenceRanges(
+        sdt([
+          {
+            type: "paragraph",
+            content: [{ text: "A non\u2011" }],
+            nextPart: [1],
+          },
+          {
+            type: "paragraph",
+            content: [{ text: "linear model." }],
+            previousPart: [0],
+          },
+        ]),
+      );
+      assert.deepEqual(
+        ranges.map((r) => r.text),
+        ["A non\u2011linear model."],
+      );
+    });
+
+    it("keeps the space before a leading decimal at a part break", function () {
+      const ranges = sdtSentenceRanges(
+        sdt([
+          {
+            type: "paragraph",
+            content: [{ text: "The probability is" }],
+            nextPart: [1],
+          },
+          { type: "paragraph", content: [{ text: ".5." }], previousPart: [0] },
+        ]),
+      );
+      assert.deepEqual(
+        ranges.map((r) => r.text),
+        ["The probability is .5."],
+      );
+    });
+
+    it("reads a decimal split across text nodes as a decimal", function () {
+      const probability = sdtSentenceRanges(
+        sdt([
+          {
+            type: "paragraph",
+            content: [{ text: "The probability is" }],
+            nextPart: [1],
+          },
+          {
+            type: "paragraph",
+            content: [{ text: "." }, { text: "5." }],
+            previousPart: [0],
+          },
+        ]),
+      );
+      assert.deepEqual(
+        probability.map((r) => r.text),
+        ["The probability is .5."],
+      );
+      const ratio = sdtSentenceRanges(
+        sdt([
+          {
+            type: "paragraph",
+            content: [{ text: "The ratio was 3" }],
+            nextPart: [1],
+          },
+          {
+            type: "paragraph",
+            content: [{ text: "." }, { text: "5 overall." }],
+            previousPart: [0],
+          },
+        ]),
+      );
+      assert.deepEqual(
+        ratio.map((r) => r.text),
+        ["The ratio was 3.5 overall."],
+      );
+    });
+
+    it("keeps a number split before its decimal point whole", function () {
+      const ranges = sdtSentenceRanges(
+        sdt([
+          {
+            type: "paragraph",
+            content: [{ text: "The ratio was 3" }],
+            nextPart: [1],
+          },
+          {
+            type: "paragraph",
+            content: [{ text: ".5 overall." }],
+            previousPart: [0],
+          },
+        ]),
+      );
+      assert.deepEqual(
+        ranges.map((r) => r.text),
+        ["The ratio was 3.5 overall."],
+      );
     });
 
     it("joins non-hyphenated part breaks with a space", function () {
@@ -535,6 +712,49 @@ describe("core", function () {
         ["Object-Shape matters."],
       );
       assert.lengthOf(ranges[0].parts, 2);
+    });
+
+    it("keeps a URL split at a part break whole", function () {
+      const ranges = sdtSentenceRanges(
+        sdt([
+          {
+            type: "paragraph",
+            content: [{ text: "See https://example.org/" }],
+            nextPart: [1],
+          },
+          {
+            type: "paragraph",
+            content: [{ text: "models for details." }],
+            previousPart: [0],
+          },
+        ]),
+      );
+      assert.deepEqual(
+        ranges.map((r) => r.text),
+        ["See https://example.org/models for details."],
+      );
+      assert.lengthOf(ranges[0].parts, 2);
+    });
+
+    it("attaches a part starting with closing punctuation without a space", function () {
+      const ranges = sdtSentenceRanges(
+        sdt([
+          {
+            type: "paragraph",
+            content: [{ text: "Split here" }],
+            nextPart: [1],
+          },
+          {
+            type: "paragraph",
+            content: [{ text: ", then continue." }],
+            previousPart: [0],
+          },
+        ]),
+      );
+      assert.deepEqual(
+        ranges.map((r) => r.text),
+        ["Split here, then continue."],
+      );
     });
 
     it("reads a malformed text map as no soft hyphen", function () {

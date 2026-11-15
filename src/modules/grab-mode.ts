@@ -438,7 +438,7 @@ function ensurePageTargets(
 
 type TargetHit =
   | { kind: "hit"; index: number; pageIndex: number; pageEl: Element }
-  | { kind: "pending" }
+  | { kind: "pending"; pageIndex: number }
   | { kind: "none" };
 
 function targetAt(
@@ -453,9 +453,9 @@ function targetAt(
   const targets = state.pageTargets.get(hit.pageIndex);
   if (targets === undefined) {
     ensurePageTargets(reader, state, hit.pageIndex);
-    return { kind: "pending" };
+    return { kind: "pending", pageIndex: hit.pageIndex };
   }
-  if (targets === PENDING) return { kind: "pending" };
+  if (targets === PENDING) return { kind: "pending", pageIndex: hit.pageIndex };
   const point = clientToPdfPoint(
     reader,
     hit.pageEl,
@@ -588,10 +588,25 @@ async function handleClick(
     await handleAreaClick(reader, state, ev);
     return;
   }
-  const textHit = targetAt(reader, state, ev.clientX, ev.clientY);
-  // A "pending" hit falls through to area grab: text targets are still
-  // loading (Zotero may be building the document's structured text), and
-  // that must not block area grab
+  let textHit = targetAt(reader, state, ev.clientX, ev.clientY);
+  if (textHit.kind === "pending" && state.textSnapReady === true) {
+    // Sentences are loaded but this page's targets aren't cached yet (it
+    // hasn't been hovered): compute them, then hit-test again, so a click on
+    // text grabs the sentence instead of starting an area corner
+    const { pageIndex } = textHit;
+    const computed = await getPageTargets(reader, pageIndex).catch(
+      (e: unknown) => {
+        logError(`page targets (p${pageIndex})`, e);
+        return null;
+      },
+    );
+    if (!state.active) return;
+    if (computed) state.pageTargets.set(pageIndex, computed);
+    textHit = targetAt(reader, state, ev.clientX, ev.clientY);
+  }
+  // A still-"pending" hit falls through to area grab: Zotero may still be
+  // building the document's structured text, and that must not block area
+  // grab
   if (textHit.kind === "hit") {
     await handleTextClick(reader, state, ev, textHit);
     return;
