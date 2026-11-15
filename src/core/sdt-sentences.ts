@@ -148,14 +148,24 @@ function endsWithRemovedSoftHyphen(node: SDTNode | undefined): boolean {
 }
 
 const HYPHEN_END = /[-\u2010\u2011]$/;
+/** A part ending in a slash or opening bracket continues the same token. */
+const OPENER_END = /[/([{]$/;
+/** A part starting with closing or continuing punctuation attaches to the
+ * text before it. A period followed by a digit isn't one: it's a decimal
+ * starting a new token (".5"), unless it continues a number (see below). */
+const CLOSER_START = /^(?:[,;:!?)\]}/]|\.(?!\d))/;
 
 /**
  * Joined text of a chain plus per-text-node spans. Part breaks are column or
  * page breaks inside a block, so the join rebuilds the word or space the
  * break interrupted: nothing when the boundary already has whitespace or SDT
- * removed a soft hyphen there; a hyphen ending a part that continues
- * lowercase is a line-break hyphen, so it is dropped; any other hyphen is
- * kept ("Object-Shape"); otherwise the parts join with a space.
+ * removed a soft hyphen there (SDT removes line-break hyphens itself and
+ * flags them, so a hyphen still ending a part is a real one and is kept:
+ * "state-of-the-art"); nothing after a hyphen, slash, or opening bracket, or
+ * before closing punctuation, so a split compound, URL, or parenthetical
+ * stays whole ("https://example.org/models"); nothing before a decimal
+ * that continues a number ("3" + ".5"); otherwise the parts join with a
+ * space.
  */
 function chainText(parts: LeafBlock[]): Chain {
   let text = "";
@@ -164,18 +174,21 @@ function chainText(parts: LeafBlock[]): Chain {
   parts.forEach((part, partIndex) => {
     const nodes = part.node.content ?? [];
     const textNodes = nodes.filter((n) => isTextNode(n) && n.text);
-    const firstText = textNodes[0]?.text ?? "";
-    if (partIndex > 0 && text && firstText) {
-      const last = mappings.at(-1);
-      if (/\s$/.test(text) || /^\s/.test(firstText)) {
+    // The part's whole text, not just its first node: a leading "." and the
+    // digits after it can sit in separate nodes
+    const nextText = textNodes.map((n) => n.text).join("");
+    if (partIndex > 0 && text && nextText) {
+      if (/\s$/.test(text) || /^\s/.test(nextText)) {
         // Boundary already spaced
       } else if (endsWithRemovedSoftHyphen(prevLastNode)) {
         // SDT already removed the line-break hyphen: rejoin the word
-      } else if (HYPHEN_END.test(text)) {
-        if (/^[a-z]/.test(firstText) && last) {
-          text = text.slice(0, -1);
-          last.absEnd = Math.min(last.absEnd, text.length);
-        }
+      } else if (
+        HYPHEN_END.test(text) ||
+        OPENER_END.test(text) ||
+        CLOSER_START.test(nextText) ||
+        (/\d$/.test(text) && /^\.\d/.test(nextText))
+      ) {
+        // The break falls inside a token: join without a space
       } else {
         text += " ";
       }
