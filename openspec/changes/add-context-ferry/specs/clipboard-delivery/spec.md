@@ -18,7 +18,7 @@ Each grab SHALL be written to the system clipboard immediately upon capture: tex
 
 ### Requirement: Session bundle copy
 
-The plugin SHALL provide a session-bundle action that composes all session grabs (or all grabs since the last bundle copy) into a single clipboard payload honoring the one-action invariant. The bundle SHALL deliver as a text bundle (with inline markers standing in for image grabs) plus sequential image copies, and the multi-step delivery SHALL be communicated to the user. (Mixed HTML-with-embedded-images composition was ruled out empirically — spike S1: rich chat inputs drop images embedded in an HTML paste; single-action image batching is the MCP pull path's job.)
+The plugin SHALL provide a session-bundle action that composes all session grabs (or all grabs since the last bundle copy) into a single clipboard payload honoring the one-action invariant. The bundle SHALL deliver as a text bundle (with inline markers standing in for image grabs) plus sequential image copies, and the multi-step delivery SHALL be communicated to the user. Single-action image batching is the MCP pull path's job (see design.md, spike S1).
 
 #### Scenario: Bundle with images
 

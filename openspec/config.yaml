@@ -1,20 +1,45 @@
 schema: spec-driven
 
-# Project context (optional)
-# This is shown to AI when creating artifacts.
-# Add your tech stack, conventions, style guides, domain knowledge, etc.
-# Example:
-#   context: |
-#     Tech stack: TypeScript, React, Node.js
-#     We use conventional commits
-#     Domain: e-commerce platform
+# Shown to the AI when creating artifacts and during apply/archive
+context: |
+  Zotero Context is a Zotero plugin (TypeScript, built and tested with
+  zotero-plugin-scaffold) that ferries reading context into AI chats:
+  grab-mode sentence-snap text grabs and two-click area grabs, stamped with
+  provenance, delivered by clipboard (push) and an in-process MCP server (pull).
 
-# Per-artifact rules (optional)
-# Add custom rules for specific artifacts.
-# Example:
-#   rules:
-#     proposal:
-#       - Keep proposals under 500 words
-#       - Always include a "Non-goals" section
-#     tasks:
-#       - Break tasks into chunks of max 2 hours
+  Architecture is three layers, enforced by eslint:
+  - src/core/: viewer-agnostic logic (trail, provenance, bundles, sentence
+    geometry); no Zotero globals and no imports from adapter/modules
+  - src/adapter/: the only code that touches Zotero reader internals (private,
+    version-sensitive APIs); returns graceful failure results instead of throwing
+  - src/modules/: the UI shell (grab mode, clipboard, preferences, MCP server)
+
+  Invariants:
+  - Grabs are ephemeral: never call annotation or save APIs
+  - The MCP server is off by default, binds to 127.0.0.1, and requires a bearer
+    token; see SECURITY.md before changing its surface
+  - Reader internals churn across Zotero majors, so adapter changes need
+    coverage in test/adapter-smoke.test.ts
+
+  Tests are mocha + chai running inside Zotero (npm test).
+
+# Per-artifact rules
+rules:
+  specs:
+    - Each requirement states one behavior in under 500 characters; put examples
+      and edge cases in scenarios, and rationale in design.md
+  tasks:
+    - List manual end-to-end checks (real paper, real chat client) as their own
+      tasks
+    - No task may add Zotero access to src/core/ or reader-internals access
+      outside src/adapter/
+
+operations:
+  apply:
+    guidance:
+      - Before ticking a task, run npm run lint:check, npm run typecheck, and
+        npm test
+  archive:
+    guidance:
+      - Summarize what shipped, and update README.md and code comments that
+        reference the change's path under openspec/changes/
