@@ -174,7 +174,6 @@ export function segmentDiagnostics(reader: ReaderInstance): string {
     if (!getView(reader)) return "no view";
     return [
       `loadSDT=${typeof ir?._loadSDT}`,
-      `numPages=${String(getWaivedPdfDocument(reader)?.numPages ?? "n/a")}`,
       `sdt=${ir?._sdt ? "loaded" : ir?._sdtPromise ? "pending" : "none"}`,
     ].join(" ");
   } catch (e) {
