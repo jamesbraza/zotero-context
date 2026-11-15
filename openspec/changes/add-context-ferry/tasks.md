@@ -95,9 +95,10 @@
 - [x] 10.4 Zotero 10 port (Zotero 10 removed `_initReadAloudSegments`): sentences from structured
       text via `_loadSDT` + the reader's position mapper + `sentencex-ts` (design D2, spike S3);
       manifest 10.0–10.*; build target firefox140; non-blocking Zotero beta CI lane
-- [ ] 10.5 Manual check on Zotero 10: sentence snap on a two-column paper, including a sentence
-      across a column or page break; the built XPI installs into stock Zotero; a password-protected
-      PDF shows the text-snap-unavailable notice while area grab works
+- [ ] 10.5 Known Zotero structured-text issue, to report upstream: SDT drops the space at a
+      font-style switch inside a text node and stretches the next glyph's box over the gap (VISTA,
+      Han et al. 2026, p. 9, Figure 11 caption: "static.Bottom", "Figure 11:Evaluation"), so
+      highlights start one space early and grabbed text loses the space; revisit when Zotero fixes it
 - [ ] 10.6 Area grabs via the reader's offscreen `renderRegionCrops` (sharp at any zoom; canvas
       crop as fallback)
 - [ ] 10.7 One-click figure/table/equation grabs from structured-text blocks with their captions
@@ -106,3 +107,15 @@
 - [ ] 10.9 Paper-intro citation via `Zotero.QuickCopy` (the user's citation style)
 - [ ] 10.10 MCP `get_paper_text` over `Zotero.SDT` (trail-scoped, sectioned by the outline)
 - [ ] 10.11 Structured-text behavior on scanned/OCR PDFs and large documents
+
+## 11. Manual checks on Zotero 10 (to test)
+
+- [ ] 11.1 The built XPI installs into stock Zotero 10
+- [ ] 11.2 On a two-column paper, a sentence crossing a column or page break highlights on both
+      sides and grabs as one sentence
+- [ ] 11.3 In grab mode, after scrolling a few pages with the mouse wheel only, clicking a sentence
+      without moving the mouse first grabs its text, not an area corner
+- [ ] 11.4 On a never-opened PDF, entering grab mode right away lets area grab work before sentence
+      highlighting appears
+- [ ] 11.5 A password-protected PDF shows "Text snap unavailable on this document — area grab still
+      works", and area grab works

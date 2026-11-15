@@ -150,6 +150,7 @@ Toolbar button + hotkey, with a pref choosing hotkey semantics (toggle vs. press
 - [Reader internals churn between Zotero point releases] → all access confined to the adapter; CI runs `zotero-plugin test` against current Zotero; adapter failures degrade features (e.g. sentence-snap off) rather than crash; a public Zotero API for structured-text segments (e.g. desktop `getReadAloudSegments`) is the future exit ramp.
 - [Mixed text+image single paste may not land in claude.ai (S1)] → floor design (per-grab paste) already satisfies daily use; bundle degrades to text+sequential images.
 - [Sentence segmentation quality on messy PDFs (two-column, math-heavy)] → sentencex over Zotero's layout-model text is the current best-in-class; imperfect snaps are still grabbable via shift-extend or area grab.
+- [Zotero's structured text drops spaces at font-style switches] → highlights can start one space early and grabbed text can lose that space (e.g. "Figure 11:Evaluation"); reported upstream (backlog 10.5); no plugin workaround, since one would bring back char-geometry code.
 - [Per-page precompute cost on large PDFs] → lazy per-page, cached, computed only in grab mode.
 - [Clipboard behavior differences (Linux/WSL vs Windows/macOS)] → ClipboardHelper has per-platform fallbacks; verify on the user's actual platforms early (Windows host is primary).
 - [MCP port conflicts / client setup friction] → configurable port, graceful disable, README recipes for Claude desktop/Code; clipboard path is always available.
