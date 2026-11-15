@@ -1,4 +1,12 @@
-import { ZoteroToolkit } from "zotero-plugin-toolkit/ztoolkit";
+import {
+  BasicTool,
+  ClipboardHelper,
+  KeyboardManager,
+  makeHelperTool,
+  ProgressWindowHelper,
+  UITool,
+  unregister,
+} from "zotero-plugin-toolkit";
 import { config } from "../../package.json";
 
 export { createZToolkit };
@@ -20,4 +28,30 @@ function initZToolkit(_ztoolkit: ReturnType<typeof createZToolkit>) {
     "default",
     `chrome://${config.addonRef}/content/icons/favicon.png`,
   );
+}
+
+/**
+ * On-demand toolkit: only the modules this plugin uses are bundled.
+ *
+ * Add modules here as needed, e.g. `Reader: ReaderTool`,
+ * `Dialog: typeof DialogHelper`, `Patch: typeof PatchHelper`.
+ */
+class ZoteroToolkit extends BasicTool {
+  UI: UITool;
+  Keyboard: KeyboardManager;
+  Clipboard: typeof ClipboardHelper;
+  ProgressWindow: typeof ProgressWindowHelper;
+
+  constructor() {
+    super();
+    this.UI = new UITool(this);
+    this.Keyboard = new KeyboardManager(this);
+    this.Clipboard = makeHelperTool(ClipboardHelper, this);
+    this.ProgressWindow = makeHelperTool(ProgressWindowHelper, this);
+  }
+
+  /** Unregister everything created by the modules. */
+  unregisterAll() {
+    unregister(this);
+  }
 }
