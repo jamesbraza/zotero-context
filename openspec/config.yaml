@@ -27,6 +27,9 @@ context: |
 
 # Per-artifact rules
 rules:
+  specs:
+    - Each requirement states one behavior in under 500 characters; put examples
+      and edge cases in scenarios, and rationale in design.md
   tasks:
     - List manual end-to-end checks (real paper, real chat client) as their own
       tasks
