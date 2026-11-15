@@ -557,8 +557,10 @@ function flashRects(doc: Document, rects: readonly OverlayRect[]): void {
     }),
   );
   for (const el of els) body.appendChild(el);
-  // Force a style flush so the opacity change below actually transitions
-  void els[0]?.offsetWidth;
+  // A transition needs a computed "before" style to animate from; reading
+  // opacity here computes it before the change below
+  // eslint-disable-next-line @typescript-eslint/no-unused-expressions
+  if (els[0]) win.getComputedStyle(els[0])?.opacity;
   for (const el of els) el.style.opacity = "0";
   win.setTimeout(() => {
     for (const el of els) el.remove();
