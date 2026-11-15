@@ -6,88 +6,41 @@
  * presence checks and return null quietly so callers degrade per the specs;
  * genuine throws are logged via logError and then degrade — never silenced.
  *
- * Access paths verified on Zotero 9.0.6 (spike S2, 2026-07-21 — see
+ * Access paths verified on Zotero 10.0.8 (spike S3, 2026-11-15 — see
  * openspec/changes/add-context-ferry/design.md).
  */
+import { sdtSentenceRanges, type SDTStructure } from "../core/sdt-sentences";
 import { logError } from "../utils/log";
 
 declare const Components: any;
 
-/** Per-character geometry from the reader's page data (consumed fields only). */
-export interface CharBox {
-  c: string;
-  u: string;
-  inlineRect: [number, number, number, number];
-}
+/** A PDF-unit rect [x0, y0, x1, y1] (origin bottom-left). */
+type PdfRect = [number, number, number, number];
 
-/** A Read Aloud segment: text unit with PDF geometry. */
-export interface ReaderSegment {
-  anchor: string;
+/** A sentence mapped onto page geometry; spans >1 page at part/page breaks. */
+export interface ReaderSentence {
   text: string;
-  position: { pageIndex: number; rects: [number, number, number, number][] };
-  granularity: string;
-  offsetStart: number;
-  offsetEnd: number;
+  pages: { pageIndex: number; rects: PdfRect[] }[];
 }
 
 type ReaderInstance = _ZoteroTypes.ReaderInstance;
 
-function getView(reader: ReaderInstance): any | null {
-  return (reader as any)._internalReader?._primaryView ?? null;
+/** The reader's content-side Reader object (zotero/reader `Reader`). */
+function getInternalReader(reader: ReaderInstance): any | null {
+  return (reader as any)._internalReader ?? null;
 }
 
-const charsCache = new WeakMap<object, Map<number, CharBox[]>>();
-
-/**
- * Per-char geometry for a page. The reader's array lives behind an Xray
- * waiver — passing privileged callbacks into its methods throws "Permission
- * denied to pass object to privileged code" — so clone into plain privileged
- * objects. Only successful clones are cached: a page that has not rendered
- * yet returns null uncached, so later calls retry once its chars exist.
- */
-export function getPageChars(
-  reader: ReaderInstance,
-  pageIndex: number,
-): CharBox[] | null {
-  let pages = charsCache.get(reader);
-  if (!pages) {
-    pages = new Map();
-    charsCache.set(reader, pages);
-  }
-  const cached = pages.get(pageIndex);
-  if (cached) return cached;
-  try {
-    const raw = getView(reader)?._pdfPages?.[pageIndex]?.chars;
-    if (!raw?.length) return null; // not rendered yet — retry later
-    const cloned: CharBox[] = [];
-    for (let i = 0; i < raw.length; i++) {
-      const ch = raw[i];
-      cloned.push({
-        c: ch.c,
-        u: ch.u,
-        inlineRect: [
-          ch.inlineRect[0],
-          ch.inlineRect[1],
-          ch.inlineRect[2],
-          ch.inlineRect[3],
-        ],
-      });
-    }
-    pages.set(pageIndex, cloned);
-    return cloned;
-  } catch (e) {
-    logError(`getPageChars(p${pageIndex})`, e);
-    return null;
-  }
+function getView(reader: ReaderInstance): any | null {
+  return getInternalReader(reader)?._primaryView ?? null;
 }
 
 /**
  * Resolves once the reader's primary view is fully initialized: pdf document
- * loaded, page count known, initial navigation done. Verified on the 9.0.6
- * bundle and the Zotero 10 line: the view resolves `initializedPromise` at
- * the end of its `_init()`, and Zotero core itself awaits this same promise
- * (so it breaking would break Zotero first). Returns false when the chain is
- * absent (version churn) — callers degrade to on-activation warming.
+ * loaded, page count known, initial navigation done. The view resolves
+ * `initializedPromise` at the end of its `_init()`, and Zotero core itself
+ * awaits this same promise (so it breaking would break Zotero first).
+ * Returns false when the chain is absent (version churn) — callers degrade
+ * to on-activation warming.
  *
  * NEVER await `_internalReader.initializedPromise` instead: that promise is
  * created but never resolved (zotero/reader#171), so awaiting it hangs
@@ -113,122 +66,116 @@ export async function waitForViewInitialized(
   }
 }
 
+/** Readers whose SDT load completed without usable sentences. */
+const sdtUnavailable = new WeakSet<object>();
+
 /**
- * Whether the segment machinery is *permanently* unavailable: the reader's
- * view exists but lacks the Read Aloud API (Zotero version churn). A missing
- * view is NOT absence — the view only appears ~1s after Reader.open resolves
- * (measured on 9.0.6), so callers must treat that as transient and retry.
+ * Whether sentence segments are *permanently* unavailable for this reader:
+ * its Reader lacks the SDT loader (Zotero version churn), or an SDT load
+ * already completed without usable sentences (password-protected or failed
+ * extraction, or a document with no text). `_loadSDT()` only resolves after
+ * pack generation finishes, so such a result is final for the reader's
+ * lifetime — retrying would just re-run extraction (reopen to retry). A
+ * missing view is NOT unavailability — the view appears shortly after
+ * Reader.open resolves, so callers must treat that as transient and retry.
  */
-export function segmentApiAbsent(reader: ReaderInstance): boolean {
-  const view = getView(reader);
-  return !!view && typeof view._initReadAloudSegments !== "function";
+export function segmentsUnavailable(reader: ReaderInstance): boolean {
+  if (!getView(reader)) return false;
+  return (
+    typeof getInternalReader(reader)?._loadSDT !== "function" ||
+    sdtUnavailable.has(reader)
+  );
 }
 
-/** Segment array from the Read Aloud stash in any of its observed shapes:
- * bare array (init's return value), {paragraphs} (9.0.6 stash), {segments}. */
-function segmentArrayFrom(stash: any): any[] | null {
-  const arr = Array.isArray(stash)
-    ? stash
-    : (stash?.paragraphs ?? stash?.segments);
-  return Array.isArray(arr) && arr.length ? arr : null;
-}
-
-/** Re-arm the one-shot _initReadAloudSegments guard after a premature or
- * failed compute (see getSegments); never called when real data exists. */
-function clearSegmentStash(view: any): void {
-  view._readAloudSegmentsPromise = null;
-  view._readAloudSegments = null;
+function addRects(
+  byPage: Map<number, PdfRect[]>,
+  pageIndex: unknown,
+  rects: unknown,
+): void {
+  if (!Number.isInteger(pageIndex) || !Array.isArray(rects)) return;
+  let list = byPage.get(pageIndex as number);
+  if (!list) {
+    list = [];
+    byPage.set(pageIndex as number, list);
+  }
+  for (const r of rects as PdfRect[]) list.push([r[0], r[1], r[2], r[3]]);
 }
 
 /**
- * Sentence/paragraph segments from Zotero's shipped Read Aloud machinery
- * (local segmentation only — never touches the TTS/credits path). Returns
- * null when the API is absent (permanent — see segmentApiAbsent) or when the
- * attempt throws (transient; logged; callers may retry).
+ * Sentence segments from Zotero's Structured Document Text: the reader's
+ * own SDT load (`_loadSDT()` → {structure, mapper}, the layer Read Aloud and
+ * Reading Mode use), split into sentences by core/sdt-sentences, then mapped
+ * to page rects by the reader's position mapper. Returns null when the view
+ * is not up yet or the attempt throws (logged) — both transient — or when
+ * the document has no usable SDT, which segmentsUnavailable then reports as
+ * final.
  *
- * The machinery is a fragile one-shot (reader.js _initReadAloudSegments,
- * verified on 9.0.6): it sets _readAloudSegmentsPromise BEFORE computing,
- * that promise resolves to undefined (data lands on _readAloudSegments =
- * {paragraphs, sentences}), repeat calls just return the promise, pages
- * without extracted chars are silently skipped, and a mid-compute throw
- * leaves the promise pending forever. So: read results from the stash, never
- * await the data-less promise, gate the first call on the viewer knowing its
- * pages, and clear a poisoned (empty/failed) stash so retries re-arm it.
+ * `_loadSDT` resolves a content-compartment object: waive Xrays to read it,
+ * clone the structure into plain privileged data for the core, and clone
+ * each range into the reader window before handing it to the mapper.
  */
 export async function getSegments(
   reader: ReaderInstance,
-): Promise<ReaderSegment[] | null> {
-  const view = getView(reader);
-  if (typeof view?._initReadAloudSegments !== "function") return null;
+): Promise<ReaderSentence[] | null> {
+  const ir = getInternalReader(reader);
+  const win = getView(reader)?._iframeWindow;
+  if (typeof ir?._loadSDT !== "function" || !win) return null;
   try {
-    let segments = segmentArrayFrom(view._readAloudSegments);
-    if (!segments && view._readAloudSegmentsPromise) {
-      // A compute already ran or is in flight. If it finished empty, it ran
-      // before chars were extractable — clear so the next attempt retries.
-      if (view._readAloudSegments) clearSegmentStash(view);
+    const loaded: unknown = await ir._loadSDT();
+    const sdt = loaded ? Components.utils.waiveXrays(loaded) : null;
+    const mapper = sdt?.mapper;
+    if (typeof mapper?.sdtToSourcePosition !== "function") {
+      sdtUnavailable.add(reader);
       return null;
     }
-    if (!segments) {
-      // First call: computing before the document knows its pages would
-      // stash empty arrays permanently — treat as not-ready instead.
-      // numPages via the waived pdfDocument: the same access path outline
-      // resolution uses, so it degrades identically across environments.
-      if (!getWaivedPdfDocument(reader)?.numPages) return null;
-      const result = await view._initReadAloudSegments();
-      segments =
-        segmentArrayFrom(result) ?? segmentArrayFrom(view._readAloudSegments);
-      if (!segments) {
-        clearSegmentStash(view);
-        return null;
+    const structure = JSON.parse(JSON.stringify(sdt.structure)) as SDTStructure;
+    const sentences: ReaderSentence[] = [];
+    for (const s of sdtSentenceRanges(structure)) {
+      const byPage = new Map<number, PdfRect[]>();
+      for (const part of s.parts) {
+        const pos = mapper.sdtToSourcePosition(
+          Components.utils.cloneInto(part, win),
+        );
+        const pageIndex: unknown = pos?.pageIndex;
+        if (typeof pageIndex !== "number") continue;
+        addRects(byPage, pageIndex, pos.rects);
+        // The mapper reports a page-crossing range's continuation separately
+        if (pos.nextPageRects) {
+          addRects(byPage, pageIndex + 1, pos.nextPageRects);
+        }
       }
-    }
-    // Clone out of the Xray waiver (see getPageChars) with plain loops
-    const cloned: ReaderSegment[] = [];
-    for (let i = 0; i < segments.length; i++) {
-      const s = segments[i];
-      const rects: [number, number, number, number][] = [];
-      const srcRects = s.position?.rects ?? [];
-      for (let j = 0; j < srcRects.length; j++) {
-        const r = srcRects[j];
-        rects.push([r[0], r[1], r[2], r[3]]);
-      }
-      cloned.push({
-        anchor: s.anchor,
+      if (!byPage.size) continue;
+      sentences.push({
         text: s.text,
-        position: { pageIndex: s.position?.pageIndex, rects },
-        granularity: s.granularity,
-        offsetStart: s.offsetStart,
-        offsetEnd: s.offsetEnd,
+        pages: [...byPage.entries()]
+          .sort(([a], [b]) => a - b)
+          .map(([pageIndex, rects]) => ({ pageIndex, rects })),
       });
     }
-    return cloned;
-  } catch (e) {
-    // A throw during our init call leaves the one-shot guard pending
-    // forever — clear it (unless real data landed) so retries can re-run
-    try {
-      if (!segmentArrayFrom(view._readAloudSegments)) clearSegmentStash(view);
-    } catch {
-      // stash not writable — nothing further to clean up
+    if (!sentences.length) {
+      sdtUnavailable.add(reader);
+      return null;
     }
+    return sentences;
+  } catch (e) {
     logError("getSegments", e);
     return null;
   }
 }
 
 /**
- * One-line snapshot of the segment machinery's state, for adapter smoke
- * tests: when reader-internals churn breaks segments in CI, the failing
- * assertion carries the why.
+ * One-line snapshot of the SDT machinery's state, for adapter smoke tests:
+ * when reader-internals churn breaks segments in CI, the failing assertion
+ * carries the why.
  */
 export function segmentDiagnostics(reader: ReaderInstance): string {
   try {
-    const view = getView(reader);
-    if (!view) return "no view";
+    const ir = getInternalReader(reader);
+    if (!getView(reader)) return "no view";
     return [
-      `apiAbsent=${typeof view._initReadAloudSegments !== "function"}`,
+      `loadSDT=${typeof ir?._loadSDT}`,
       `numPages=${String(getWaivedPdfDocument(reader)?.numPages ?? "n/a")}`,
-      `stashPromise=${typeof view._readAloudSegmentsPromise}`,
-      `stash=${typeof view._readAloudSegments}`,
+      `sdt=${ir?._sdt ? "loaded" : ir?._sdtPromise ? "pending" : "none"}`,
     ].join(" ");
   } catch (e) {
     return `diagnostics failed: ${String(e)}`;

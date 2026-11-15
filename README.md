@@ -58,12 +58,13 @@ in the reader toolbar (or press `Ctrl+Alt+G`), and the cursor becomes a crosshai
 - **Paper intro**: `Ctrl+Alt+I` puts the paper's PDF file on the clipboard;
   pasting into claude.ai attaches it.
   Press again within a minute for an intro message (citation + abstract) to open the chat with.
-- **Scanned PDFs**: sentence snap degrades to per-line snap targets automatically.
-  Detection is character-exact: the plugin aligns the extracted sentence text against the
-  PDF's glyph geometry unit by unit (absorbing ligatures and dehyphenated line breaks),
-  and when the two can't be reconciled (typical for OCR'd text layers),
-  it distrusts sentence boundaries and offers visual lines instead,
-  which are derived from glyph positions alone.
+- **Sentences come from Zotero's own text layer**: Zotero builds structured text for each document
+  with a local layout model (the same text behind Read Aloud and Reading Mode).
+  Sentence snap reads it, so sentences follow reading order across columns,
+  sentences split by a column or page break still grab whole,
+  and running headers, footers, and page numbers are never snap targets.
+  Zotero builds it the first time a document is opened;
+  until then, and on documents it can't process, area grab still works.
 
 ### Hotkeys
 
