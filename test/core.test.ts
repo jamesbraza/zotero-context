@@ -408,6 +408,64 @@ describe("core", function () {
       assert.equal(ranges[1].text, "Done.");
     });
 
+    it("splits after a superscript footnote marker, keeping it in the sentence", function () {
+      const ranges = sdtSentenceRanges(
+        sdt([
+          {
+            type: "paragraph",
+            content: [
+              { text: "First sentence." },
+              { text: "1", style: { sup: true } },
+              { text: " Second sentence." },
+            ],
+          },
+        ]),
+      );
+      assert.deepEqual(
+        ranges.map((r) => r.text),
+        ["First sentence.1", "Second sentence."],
+      );
+      // The marker's glyph stays in the first sentence's range
+      assert.deepEqual(ranges[0].parts, [{ start: [0, 0, 0], end: [0, 1, 1] }]);
+      assert.deepEqual(ranges[1].parts, [
+        { start: [0, 2, 1], end: [0, 2, 17] },
+      ]);
+    });
+
+    it("splits after an unstyled Unicode superscript marker", function () {
+      const ranges = sdtSentenceRanges(
+        sdt([
+          {
+            type: "paragraph",
+            content: [{ text: "Shown before.\u00B2 Then more." }],
+          },
+        ]),
+      );
+      assert.deepEqual(
+        ranges.map((r) => r.text),
+        ["Shown before.\u00B2", "Then more."],
+      );
+    });
+
+    it("leaves superscript text that isn't a marker alone", function () {
+      const ranges = sdtSentenceRanges(
+        sdt([
+          {
+            type: "paragraph",
+            content: [
+              { text: "The 5" },
+              { text: "th", style: { sup: true } },
+              { text: " layer is deep. Next one." },
+            ],
+          },
+        ]),
+      );
+      assert.deepEqual(
+        ranges.map((r) => r.text),
+        ["The 5th layer is deep.", "Next one."],
+      );
+    });
+
     it("prunes excluded flow and images, keeps auxiliary flow", function () {
       const ranges = sdtSentenceRanges(
         sdt([

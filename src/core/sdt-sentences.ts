@@ -35,6 +35,7 @@ interface SDTNode {
   nextPart?: RefPath;
   /** PDF text nodes carry a text map: a JSON array of glyph runs. */
   anchor?: { textMap?: string };
+  style?: { sup?: boolean };
 }
 
 export interface SDTStructure {
@@ -63,6 +64,8 @@ interface Mapping {
   ref: RefPath;
   absStart: number;
   absEnd: number;
+  /** Superscript-styled text node (footnote or citation markers). */
+  sup: boolean;
 }
 
 interface Chain {
@@ -200,6 +203,7 @@ function chainText(parts: LeafBlock[]): Chain {
         ref: [...part.ref, i],
         absStart: text.length,
         absEnd: text.length + node.text.length,
+        sup: node.style?.sup === true,
       });
       text += node.text;
     });
@@ -229,6 +233,63 @@ function spanToParts(chain: Chain, start: number, end: number): SDTRange[] {
   return ranges;
 }
 
+/** Characters a footnote or citation marker is made of. */
+const MARKER_CHAR =
+  /[0-9*\u2020\u2021\u00A7\u00B6\u00B9\u00B2\u00B3\u2070\u2074-\u2079]/;
+/** Separators allowed between marker characters ("1,2", "3-5"). */
+const MARKER_SEPARATOR = /[\s,;\-\u2010-\u2015]/;
+/** Characters that are superscript on their own, without a superscript style. */
+const SUPERSCRIPT_CHAR = /[\u00B9\u00B2\u00B3\u2070\u2074-\u2079]/;
+
+function isMarkerRun(run: string): boolean {
+  let hasMarker = false;
+  for (const ch of run) {
+    if (MARKER_CHAR.test(ch)) hasMarker = true;
+    else if (!MARKER_SEPARATOR.test(ch)) return false;
+  }
+  return hasMarker;
+}
+
+/**
+ * The chain text with superscript footnote and citation markers replaced by
+ * spaces, for sentence splitting only. A marker right after sentence-ending
+ * punctuation ("First sentence.¹ Second sentence.") makes the splitter read
+ * the period as a decimal point, merging the sentences; same-length masking
+ * hides it without moving any offsets, so sentences are still cut from the
+ * original text and keep their markers. Ported from zotero/reader's
+ * `maskSuperscriptMarkers` (src/common/read-aloud/sdt-segments.ts, AGPL).
+ */
+function maskMarkers(chain: Chain): string {
+  const { text, mappings } = chain;
+  const sup = new Array<boolean>(text.length).fill(false);
+  for (const m of mappings) if (m.sup) sup.fill(true, m.absStart, m.absEnd);
+  for (let i = 0; i < text.length; i++) {
+    if (SUPERSCRIPT_CHAR.test(text.charAt(i))) sup[i] = true;
+  }
+  let masked: string[] | null = null;
+  let i = 0;
+  while (i < text.length) {
+    if (!sup[i]) {
+      i++;
+      continue;
+    }
+    const start = i;
+    // A run may include separators, but only between superscript characters
+    while (
+      i < text.length &&
+      (sup[i] || (MARKER_SEPARATOR.test(text.charAt(i)) && sup[i + 1]))
+    ) {
+      i++;
+    }
+    if (isMarkerRun(text.slice(start, i))) {
+      // UTF-16 units, matching the offsets everything else uses
+      masked ??= text.split("");
+      masked.fill(" ", start, i);
+    }
+  }
+  return masked ? masked.join("") : text;
+}
+
 /** Document language for the segmenter: the source's declared language
  * (base subtag), else English (sentencex falls back sensibly). */
 export function sdtLanguage(structure: SDTStructure): string {
@@ -249,7 +310,8 @@ export function sdtSentenceRanges(
   for (const parts of buildChains(collectLeafBlocks(structure))) {
     const chain = chainText(parts);
     if (!chain.text.trim()) continue;
-    for (const b of getSentenceBoundaries(lang, chain.text)) {
+    // Split a marker-masked copy; cut sentences from the original text
+    for (const b of getSentenceBoundaries(lang, maskMarkers(chain))) {
       // Trim the boundary's surrounding whitespace before mapping, so
       // highlight rects hug the sentence's glyphs
       const raw = chain.text.slice(b.startIndex, b.endIndex);
