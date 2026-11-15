@@ -1,7 +1,8 @@
-import type { SentenceTarget } from "./sentences";
-
 /** A sentence-level snap target on a page, in reading order. */
-export interface SnapTarget extends SentenceTarget {
+export interface SnapTarget {
+  text: string;
+  /** PDF-unit rects [x0, y0, x1, y1], one per visual line on this page. */
+  rects: [number, number, number, number][];
   pageIndex: number;
 }
 

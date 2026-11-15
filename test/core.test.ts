@@ -10,10 +10,10 @@ import {
 } from "../src/core/provenance";
 import { renderBundle } from "../src/core/bundle";
 import {
-  sentenceTargetsForSegment,
-  type CharGeom,
-  type SentenceTarget,
-} from "../src/core/sentences";
+  sdtLanguage,
+  sdtSentenceRanges,
+  type SDTStructure,
+} from "../src/core/sdt-sentences";
 import type { Grab, GrabSource } from "../src/core/types";
 import {
   HIT_PADDING,
@@ -54,76 +54,8 @@ const LOCATOR_CASES: {
   { name: "nothing to locate", input: { paperId: "x" }, expected: "" },
 ];
 
-/** Synthetic chars: one unit per glyph, 10 units wide, on one line. */
-function makeChars(glyphs: string[], y = 700): CharGeom[] {
-  return glyphs.map((u, i) => ({
-    u,
-    inlineRect: [10 * i, y, 10 * (i + 1), y + 10],
-  }));
-}
-
-// Mechanical alignment cases; named regressions stay as their own tests
-const ALIGNMENT_CASES: {
-  name: string;
-  text: string;
-  glyphs: string[];
-  /** Segment rects passed through; defaults to a dummy rect. */
-  segRects?: [number, number, number, number][];
-  expectTargets: number;
-  check: (targets: SentenceTarget[]) => void;
-}[] = [
-  {
-    name: "maps sentences to char rects exactly",
-    text: "One two. Three four.",
-    glyphs: "Onetwo.Threefour.".split(""),
-    expectTargets: 2,
-    check: (t) => {
-      assert.equal(t[0].text, "One two.");
-      assert.equal(t[1].text, "Three four.");
-      // "Three" starts at char index 7 → x = 70
-      assert.equal(t[1].rects[0][0], 70);
-      assert.equal(t[0].rects[0][2], 70);
-    },
-  },
-  {
-    // Chars carry "ﬁ" as ONE unit; text spells it out as "fi"
-    name: "absorbs ligature units without drifting",
-    text: "The fish swim. Yes indeed.",
-    glyphs: [
-      ..."The".split(""),
-      "ﬁ",
-      ..."sh".split(""),
-      ..."swim.".split(""),
-      ..."Yesindeed.".split(""),
-    ],
-    expectTargets: 2,
-    // Second sentence must start at the char right after "." (index 11)
-    check: (t) => {
-      assert.equal(t[1].rects[0][0], 110);
-    },
-  },
-  {
-    // Chars contain a line-break hyphen the segment text lacks
-    name: "skips dehyphenated hyphen units without drifting",
-    text: "A reward design. Next one.",
-    glyphs: [..."Areward-design.".split(""), ..."Nextone.".split("")],
-    expectTargets: 2,
-    // "Next" starts after "Areward-design." = 15 units → x = 150
-    check: (t) => {
-      assert.equal(t[1].rects[0][0], 150);
-    },
-  },
-  {
-    name: "returns the whole segment when there is one sentence",
-    text: "Only one sentence here",
-    glyphs: "Onlyonesentencehere".split(""),
-    segRects: [[1, 2, 3, 4]],
-    expectTargets: 1,
-    check: (t) => {
-      assert.deepEqual(t[0].rects, [[1, 2, 3, 4]]);
-    },
-  },
-];
+/** Minimal SDT document over the given top-level blocks. */
+const sdt = (content: SDTStructure["content"]): SDTStructure => ({ content });
 
 // A word wider than the strip is not force-broken (pinned behavior): as the
 // first word of a line it lands via the !current branch, as the last via the
@@ -162,17 +94,21 @@ const loadSegmentCache = (): Promise<SegmentCache> =>
   import("../src/modules/segment-cache");
 const fakeReader = () =>
   ({}) as unknown as Parameters<SegmentCache["getSegmentsCached"]>[0];
-const SEGMENTS = [
-  { text: "s", offsetStart: 0, offsetEnd: 0 },
-] as unknown as NonNullable<
+const SEGMENTS = [{ text: "s", pages: [] }] as unknown as NonNullable<
   Awaited<ReturnType<SegmentCache["getSegmentsCached"]>>
 >;
-/** Multi-page segments for the per-page index path (fake reader has no char
- * geometry, so targets take the paragraph fallback — one per segment). */
+/** Multi-page sentences for the per-page index path; the last one crosses a
+ * page break, so it must surface on both pages. */
 const PAGED_SEGMENTS = [
-  { text: "p0 first.", position: { pageIndex: 0, rects: [[0, 0, 1, 1]] } },
-  { text: "p1 first.", position: { pageIndex: 1, rects: [[0, 0, 1, 1]] } },
-  { text: "p0 second.", position: { pageIndex: 0, rects: [[0, 2, 1, 3]] } },
+  { text: "p0 first.", pages: [{ pageIndex: 0, rects: [[0, 0, 1, 1]] }] },
+  { text: "p1 first.", pages: [{ pageIndex: 1, rects: [[0, 0, 1, 1]] }] },
+  {
+    text: "p0 into p1.",
+    pages: [
+      { pageIndex: 0, rects: [[0, 2, 1, 3]] },
+      { pageIndex: 1, rects: [[0, 4, 1, 5]] },
+    ],
+  },
 ] as unknown as NonNullable<
   Awaited<ReturnType<SegmentCache["getSegmentsCached"]>>
 >;
@@ -181,25 +117,25 @@ const CACHE_CASES: {
   name: string;
   /** Per-call fetch behavior (1-based call number). */
   fetch: (call: number) => Promise<typeof SEGMENTS | null>;
-  apiAbsent: boolean;
+  unavailable: boolean;
   first: typeof SEGMENTS | null;
   second: typeof SEGMENTS | null;
   expectedCalls: number;
 }[] = [
   {
-    // Covers both transient shapes: view not yet created (~1s after open
-    // on 9.0.6) and view present but segments not ready
+    // Covers both transient shapes: view not yet created and view present
+    // but SDT not loaded yet (pack still generating)
     name: "does not cache a transient null — later call retries",
     fetch: (n) => Promise.resolve(n === 1 ? null : SEGMENTS),
-    apiAbsent: false,
+    unavailable: false,
     first: null,
     second: SEGMENTS,
     expectedCalls: 2,
   },
   {
-    name: "caches null when the segment API is absent — no useless refetch",
+    name: "caches null when segments are unavailable — no useless refetch",
     fetch: () => Promise.resolve(null),
-    apiAbsent: true,
+    unavailable: true,
     first: null,
     second: null,
     expectedCalls: 1,
@@ -207,7 +143,7 @@ const CACHE_CASES: {
   {
     name: "caches a successful result",
     fetch: () => Promise.resolve(SEGMENTS),
-    apiAbsent: false,
+    unavailable: false,
     first: SEGMENTS,
     second: SEGMENTS,
     expectedCalls: 1,
@@ -216,7 +152,7 @@ const CACHE_CASES: {
     name: "evicts a rejection and degrades to null — later call retries",
     fetch: (n) =>
       n === 1 ? Promise.reject(new Error("boom")) : Promise.resolve(SEGMENTS),
-    apiAbsent: false,
+    unavailable: false,
     first: null,
     second: SEGMENTS,
     expectedCalls: 2,
@@ -226,28 +162,28 @@ const CACHE_CASES: {
 const GATE_CASES: {
   name: string;
   segments: typeof SEGMENTS | null;
-  apiAbsent: boolean;
+  unavailable: boolean;
   expected: boolean | null;
 }[] = [
   // Segments: snap live
   {
     name: "segments → live",
     segments: SEGMENTS,
-    apiAbsent: false,
+    unavailable: false,
     expected: true,
   },
   // Transient miss (view or segments not ready): unknown — gate open
   {
     name: "transient miss → unknown",
     segments: null,
-    apiAbsent: false,
+    unavailable: false,
     expected: null,
   },
-  // API absent: permanently unavailable — gate closes
+  // Unavailable (loader gone or SDT load failed): final — gate closes
   {
-    name: "API absent → closed",
+    name: "SDT unavailable → closed",
     segments: null,
-    apiAbsent: true,
+    unavailable: true,
     expected: false,
   },
 ];
@@ -428,93 +364,183 @@ describe("core", function () {
     });
   });
 
-  describe("core/sentences", function () {
-    for (const {
-      name,
-      text,
-      glyphs,
-      segRects,
-      expectTargets,
-      check,
-    } of ALIGNMENT_CASES) {
-      it(name, function () {
-        const targets = sentenceTargetsForSegment(
-          text,
-          makeChars(glyphs),
-          segRects ?? [[0, 0, 1, 1]],
-        );
-        assert.lengthOf(targets, expectTargets);
-        check(targets);
+  describe("core/sdt-sentences", function () {
+    it("splits a block into sentences addressed per text node", function () {
+      const ranges = sdtSentenceRanges(
+        sdt([
+          {
+            type: "paragraph",
+            content: [
+              { text: "One two. " },
+              { text: "[3]" },
+              { text: " Three four." },
+            ],
+          },
+        ]),
+      );
+      assert.deepEqual(
+        ranges.map((r) => r.text),
+        ["One two. [3]", "Three four."],
+      );
+      // A trailing citation marker stays with its sentence; a sentence
+      // spanning text nodes is one range, node to node
+      assert.deepEqual(ranges[0].parts, [{ start: [0, 0, 0], end: [0, 1, 3] }]);
+      // Surrounding whitespace is trimmed before addressing
+      assert.deepEqual(ranges[1].parts, [
+        { start: [0, 2, 1], end: [0, 2, 12] },
+      ]);
+    });
+
+    it("keeps abbreviations inside sentences (sentencex, Zotero's splitter)", function () {
+      const ranges = sdtSentenceRanges(
+        sdt([
+          {
+            type: "paragraph",
+            content: [
+              {
+                text: "See Fig. 3 and Vaswani et al. 2017 for details, e.g. the model. Done.",
+              },
+            ],
+          },
+        ]),
+      );
+      assert.lengthOf(ranges, 2);
+      assert.equal(ranges[1].text, "Done.");
+    });
+
+    it("prunes excluded flow and images, keeps auxiliary flow", function () {
+      const ranges = sdtSentenceRanges(
+        sdt([
+          {
+            type: "paragraph",
+            flowClass: "excluded",
+            content: [{ text: "Page 3" }],
+          },
+          { type: "image", content: [{ text: "x" }] },
+          {
+            type: "caption",
+            flowClass: "auxiliary",
+            content: [{ text: "Figure 1: A plot." }],
+          },
+        ]),
+      );
+      assert.deepEqual(
+        ranges.map((r) => r.text),
+        ["Figure 1: A plot."],
+      );
+      assert.deepEqual(ranges[0].parts[0].start, [2, 0, 0]);
+    });
+
+    it("joins part chains across interleaved blocks, dropping line-break hyphens", function () {
+      const ranges = sdtSentenceRanges(
+        sdt([
+          {
+            type: "paragraph",
+            content: [{ text: "The model is fast and accu-" }],
+            nextPart: [2],
+          },
+          { type: "caption", content: [{ text: "Figure 1: A plot." }] },
+          {
+            type: "paragraph",
+            content: [{ text: "rate. Next sentence." }],
+            previousPart: [0],
+          },
+        ]),
+      );
+      assert.deepEqual(
+        ranges.map((r) => r.text),
+        [
+          "The model is fast and accurate.",
+          "Next sentence.",
+          "Figure 1: A plot.",
+        ],
+      );
+      // The cross-part sentence is cut back into one range per part, and the
+      // dropped hyphen (offset 26) is outside the first part's range
+      assert.deepEqual(ranges[0].parts, [
+        { start: [0, 0, 0], end: [0, 0, 26] },
+        { start: [2, 0, 0], end: [2, 0, 5] },
+      ]);
+      assert.deepEqual(ranges[1].parts, [
+        { start: [2, 0, 6], end: [2, 0, 20] },
+      ]);
+    });
+
+    it("joins non-hyphenated part breaks with a space", function () {
+      const ranges = sdtSentenceRanges(
+        sdt([
+          {
+            type: "paragraph",
+            content: [{ text: "Split across" }],
+            nextPart: [1],
+          },
+          {
+            type: "paragraph",
+            content: [{ text: "columns here." }],
+            previousPart: [0],
+          },
+        ]),
+      );
+      assert.deepEqual(
+        ranges.map((r) => r.text),
+        ["Split across columns here."],
+      );
+      assert.lengthOf(ranges[0].parts, 2);
+    });
+
+    it("addresses text inside nested blocks by full ref path", function () {
+      const ranges = sdtSentenceRanges(
+        sdt([
+          {
+            type: "list",
+            content: [
+              { type: "listitem", content: [{ text: "Item one." }] },
+              { type: "listitem", content: [{ text: "Item two." }] },
+            ],
+          },
+        ]),
+      );
+      assert.deepEqual(
+        ranges.map((r) => r.parts[0].start),
+        [
+          [0, 0, 0, 0],
+          [0, 1, 0, 0],
+        ],
+      );
+    });
+
+    it("survives a part-link cycle without looping", function () {
+      const ranges = sdtSentenceRanges(
+        sdt([
+          {
+            type: "paragraph",
+            content: [{ text: "Alpha one." }],
+            previousPart: [1],
+            nextPart: [1],
+          },
+          {
+            type: "paragraph",
+            content: [{ text: "Beta two." }],
+            previousPart: [0],
+            nextPart: [0],
+          },
+        ]),
+      );
+      assert.deepEqual(
+        ranges.map((r) => r.text),
+        ["Alpha one.", "Beta two."],
+      );
+    });
+
+    it("derives the segmenter language from source metadata", function () {
+      const withLang = (language: unknown): SDTStructure => ({
+        content: [],
+        metadata: { source: { properties: { language } } },
       });
-    }
-
-    it("does not drift when ligatures and hyphens balance out (GoBI W bug)", function () {
-      // Regression: the GoBI Conclusion paragraph contained a ligature (+2
-      // letters vs char units) and two dehyphenated hyphens (-2), so naive
-      // non-space counting balanced over the whole segment while individual
-      // sentence positions drifted — the "While" sentence glow missed its W.
-      const text = "See efficiency in reward design here. While it works.";
-      const glyphs = [
-        ..."See".split(""),
-        "e",
-        "ﬃ", // ligature: ONE char unit, THREE text letters (+2)
-        ..."ciency".split(""),
-        ..."inre-".split(""), // dehyphenated line-break hyphen (-1)
-        ..."ward".split(""),
-        ..."de-".split(""), // second dehyphenated hyphen (-1)
-        ..."signhere.".split(""),
-        ..."Whileitworks.".split(""),
-      ];
-      const chars = makeChars(glyphs);
-      // Sanity: the imbalance cancels — naive counting would NOT detect it
-      assert.equal(
-        text.replace(/\s+/g, "").length,
-        chars.length,
-        "test precondition: totals must balance",
-      );
-      const targets = sentenceTargetsForSegment(text, chars, [[0, 0, 1, 1]]);
-      assert.lengthOf(targets, 2);
-      assert.equal(targets[1].text, "While it works.");
-      // "While..." starts at the char unit right after "signhere." — glyph
-      // index = total chars - "Whileitworks." length
-      const expectedStart = (chars.length - "Whileitworks.".length) * 10;
-      assert.equal(
-        targets[1].rects[0][0],
-        expectedStart,
-        "the W must be included in the second sentence's rect",
-      );
-      // And the first sentence must end exactly where the second begins
-      assert.equal(targets[0].rects[0][2], expectedStart);
-    });
-
-    it("keeps sentence offsets authoritative across irregular whitespace", function () {
-      // Regression: sentence positions must come from the segmenter's own
-      // offsets — accumulating lengths over a filtered sentence list desyncs
-      // when whitespace-only segments are dropped mid-paragraph.
-      const text = "One two.\n\n   Three four.";
-      const chars = makeChars("Onetwo.Threefour.".split(""));
-      const targets = sentenceTargetsForSegment(text, chars, [[0, 0, 1, 1]]);
-      assert.lengthOf(targets, 2);
-      assert.equal(targets[1].text, "Three four.");
-      // "Three" begins at char unit 7 regardless of the whitespace run
-      assert.equal(targets[1].rects[0][0], 70);
-    });
-
-    it("falls back to visual lines when unalignable", function () {
-      // OCR-style garbage: char units bear no resemblance to the text
-      const text = "Completely different content here. And more of it.";
-      const line1 = makeChars("xxxxxxxxxx".split(""), 700);
-      const line2 = makeChars("yyyyyyyyyy".split(""), 680);
-      const targets = sentenceTargetsForSegment(
-        text,
-        [...line1, ...line2],
-        [[0, 0, 1, 1]],
-      );
-      assert.lengthOf(targets, 2);
-      // Line targets: one rect per visual line
-      assert.lengthOf(targets[0].rects, 1);
-      assert.equal(targets[0].rects[0][1], 700);
-      assert.equal(targets[1].rects[0][1], 680);
+      assert.equal(sdtLanguage(withLang("de-DE")), "de");
+      assert.equal(sdtLanguage(withLang("FR")), "fr");
+      assert.equal(sdtLanguage(withLang(42)), "en");
+      assert.equal(sdtLanguage(sdt([])), "en");
     });
   });
 
@@ -598,7 +624,7 @@ describe("core", function () {
     for (const {
       name,
       fetch,
-      apiAbsent,
+      unavailable,
       first,
       second,
       expectedCalls,
@@ -609,7 +635,7 @@ describe("core", function () {
         let calls = 0;
         const source = {
           getSegments: () => fetch(++calls),
-          segmentApiAbsent: () => apiAbsent,
+          segmentsUnavailable: () => unavailable,
         };
         assert.equal(await getSegmentsCached(reader, source), first);
         assert.equal(await getSegmentsCached(reader, source), second);
@@ -617,10 +643,10 @@ describe("core", function () {
       });
     }
 
-    for (const { name, segments, apiAbsent, expected } of GATE_CASES) {
+    for (const { name, segments, unavailable, expected } of GATE_CASES) {
       it(`maps fetch results to the textSnapReady gate: ${name}`, async function () {
         const { textSnapStateFrom } = await loadSegmentCache();
-        assert.strictEqual(textSnapStateFrom(segments, apiAbsent), expected);
+        assert.strictEqual(textSnapStateFrom(segments, unavailable), expected);
       });
     }
 
@@ -633,7 +659,7 @@ describe("core", function () {
           calls++;
           return Promise.resolve(SEGMENTS);
         },
-        segmentApiAbsent: () => false,
+        segmentsUnavailable: () => false,
       };
       let ready = 0;
       const warmed = await warmSegments(reader, {
@@ -660,7 +686,7 @@ describe("core", function () {
             calls++;
             return Promise.resolve(SEGMENTS);
           },
-          segmentApiAbsent: () => false,
+          segmentsUnavailable: () => false,
         },
         waitForView: () => Promise.resolve(false),
         onReady: () => {
@@ -672,7 +698,7 @@ describe("core", function () {
       assert.equal(ready, 0);
     });
 
-    it("warmSegments: API absent → resolves null quietly, null cached", async function () {
+    it("warmSegments: segments unavailable → resolves null quietly, null cached", async function () {
       const { warmSegments, getSegmentsCached } = await loadSegmentCache();
       const reader = fakeReader();
       let calls = 0;
@@ -682,7 +708,7 @@ describe("core", function () {
           calls++;
           return Promise.resolve(null);
         },
-        segmentApiAbsent: () => true,
+        segmentsUnavailable: () => true,
       };
       const warmed = await warmSegments(reader, {
         source,
@@ -706,7 +732,7 @@ describe("core", function () {
           fetches++;
           return Promise.resolve(SEGMENTS);
         },
-        segmentApiAbsent: () => false,
+        segmentsUnavailable: () => false,
       };
       let release!: (ready: boolean) => void;
       const gate = new Promise<boolean>((resolve) => {
@@ -744,7 +770,7 @@ describe("core", function () {
             resolveFetch = resolve;
           });
         },
-        segmentApiAbsent: () => false,
+        segmentsUnavailable: () => false,
       };
       const warm = warmSegments(reader, {
         source,
@@ -759,24 +785,27 @@ describe("core", function () {
       assert.equal(fetches, 1);
     });
 
-    it("getPageTargets: serves only the hovered page's segments", async function () {
+    it("getPageTargets: serves only the hovered page's sentences", async function () {
       const { getSegmentsCached, getPageTargets } = await loadSegmentCache();
       const reader = fakeReader();
       // Seed the same cache getPageTargets reads
       await getSegmentsCached(reader, {
         getSegments: () => Promise.resolve(PAGED_SEGMENTS),
-        segmentApiAbsent: () => false,
+        segmentsUnavailable: () => false,
       });
       const page0 = await getPageTargets(reader, 0);
       assert.deepEqual(
         page0?.map((t) => t.text),
-        ["p0 first.", "p0 second."],
+        ["p0 first.", "p0 into p1."],
       );
       const page1 = await getPageTargets(reader, 1);
       assert.deepEqual(
         page1?.map((t) => t.text),
-        ["p1 first."],
+        ["p1 first.", "p0 into p1."],
       );
+      // Each page gets only its own rects of a page-crossing sentence
+      assert.deepEqual(page1?.[1].rects, [[0, 4, 1, 5]]);
+      assert.deepEqual(await getPageTargets(reader, 7), []);
     });
   });
 });

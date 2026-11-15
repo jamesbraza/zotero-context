@@ -20,7 +20,7 @@ import {
   getReaderDocument,
   getVisiblePageIndex,
   pdfRectToClientRect,
-  segmentApiAbsent,
+  segmentsUnavailable,
 } from "../adapter/reader";
 import {
   hitTestTarget,
@@ -68,9 +68,10 @@ interface GrabState {
   pending: PendingCorner | null;
   previewEl: HTMLElement | null;
   buttonEl: HTMLElement | null;
-  /** Whether the document has text segments: false = segment API absent
-   * (permanent; hover gate closes), null = unknown — still loading or a
-   * transient miss, so hovers keep trying (see textSnapStateFrom). */
+  /** Whether the document has text segments: false = unavailable (no SDT
+   * loader or no usable SDT; permanent, hover gate closes), null = unknown
+   * — still loading or a transient miss, so hovers keep trying (see
+   * textSnapStateFrom). */
   textSnapReady: boolean | null;
   /** Sentence targets per page, filled lazily as pages are hovered. */
   pageTargets: Map<number, SnapTarget[] | typeof PENDING>;
@@ -218,7 +219,7 @@ function activate(reader: ReaderInstance, state: GrabState) {
       if (!state.active) return;
       state.textSnapReady = textSnapStateFrom(
         segments,
-        segmentApiAbsent(reader),
+        segmentsUnavailable(reader),
       );
       if (segments) {
         // Snap readiness needs no announcement — the hover glow shows it.
@@ -415,10 +416,10 @@ function ensurePageTargets(
       } else {
         state.pageTargets.delete(pageIndex); // retry on next hover
         // The activation-time fetch can race the reader view; if the
-        // segment API turns out absent once the view exists, close the
+        // segments turn out unavailable once the view exists, close the
         // gate here (mirroring activation) — otherwise hovers stay
         // "pending" forever and clicks are swallowed, killing area grab
-        if (state.textSnapReady === null && segmentApiAbsent(reader)) {
+        if (state.textSnapReady === null && segmentsUnavailable(reader)) {
           state.textSnapReady = false;
           notify(
             "Text snap unavailable on this document — area grab still works",

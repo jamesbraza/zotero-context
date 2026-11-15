@@ -92,7 +92,7 @@
 - [ ] 10.1 Manual granularity toggle (sentence/line/paragraph cycle hotkey + default pref)
 - [ ] 10.2 Press-and-hold hotkey semantics pref (deferred from 3.1)
 - [ ] 10.3 Session-recap paste size guardrails (warn when bundle text exceeds chat input limits)
-- [ ] 10.4 Zotero 10 segments port: 10.0-beta removes `_initReadAloudSegments` for an SDT
+- [x] 10.4 (superseded by openspec change `port-zotero-10`) Zotero 10 segments port: 10.0-beta removes `_initReadAloudSegments` for an SDT
       pipeline (`_loadSDT()` + `buildSDTReadAloudSegments`, source-position geometry — caught
       by the 8.2 smoke suite on beta CI, 2026-07-23); add an adapter path (or the sdt-segments
       port design.md names as fallback) before Zotero 10 ships, and consider a non-blocking

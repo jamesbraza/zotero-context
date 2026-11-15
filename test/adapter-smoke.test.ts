@@ -3,9 +3,8 @@ import {
   cropPageRegion,
   getOutlineEntries,
   getPageAt,
-  getPageChars,
   getReaderDocument,
-  segmentApiAbsent,
+  segmentsUnavailable,
   segmentDiagnostics,
   waitForViewInitialized,
 } from "../src/adapter/reader";
@@ -14,9 +13,10 @@ import { getSegmentsCached, warmSegments } from "../src/modules/segment-cache";
 type ReaderInstance = _ZoteroTypes.ReaderInstance;
 
 /**
- * Adapter smoke tests (openspec add-context-ferry task 8.2): exercise every
- * reader-internals surface the adapter depends on — per-page chars, the Read
- * Aloud segment machinery, outline resolution, and page-canvas cropping —
+ * Adapter smoke tests (openspec add-context-ferry task 8.2, ported to Zotero
+ * 10 in port-zotero-10): exercise every reader-internals surface the adapter
+ * depends on — the SDT load + position mapper behind sentence segments,
+ * outline resolution, and page-canvas cropping —
  * against a real reader, so churn in Zotero's private APIs is caught in CI
  * on Zotero updates. Formalizes the S2 diagnostic spike (see design.md).
  *
@@ -81,8 +81,9 @@ describe("adapter smoke (live reader)", function () {
   it("segment machinery is present and segments converge after an early race", async function () {
     this.timeout(CONVERGE_MS + 5_000);
     if (earlySegments === null) {
-      // Real-world data point for the transient window (~1-3.6s on 9.0.6);
-      // convergence below proves the early null did not stick in the cache
+      // Real-world data point for the transient window (view creation + SDT
+      // pack generation on first open); convergence below proves the early
+      // null did not stick in the cache
       Zotero.debug("[smoke] early segments call raced init and returned null");
     }
     const segments = await until(() => getSegmentsCached(reader), CONVERGE_MS);
@@ -90,17 +91,31 @@ describe("adapter smoke (live reader)", function () {
       segments,
       `segments available once reader settles (${segmentDiagnostics(reader)})`,
     );
-    assert.isFalse(segmentApiAbsent(reader), "Read Aloud API exposed");
-    assert.isAbove(segments!.length, 0);
-    const s = segments![0];
-    assert.isString(s.text);
-    assert.isNumber(s.position.pageIndex);
-    assert.isArray(s.position.rects);
-    assert.isNumber(s.offsetStart);
-    assert.isNumber(s.offsetEnd);
-    // The underlying API is one-shot on 9.0.6 (repeat _initReadAloudSegments
-    // calls yield nothing) — the module cache must keep returning the first
-    // success for the reader's lifetime
+    assert.isFalse(segmentsUnavailable(reader), "SDT loader exposed");
+    // A 15-page paper: hundreds of sentences, on most pages
+    assert.isAbove(segments!.length, 100);
+    const pages = new Set(
+      segments!.flatMap((s) => s.pages.map((p) => p.pageIndex)),
+    );
+    assert.isAbove(pages.size, 10, "sentences span the document");
+    // Running headers/footers are excluded flow: the arXiv stamp in the
+    // margin never becomes a snap target
+    assert.notOk(
+      segments!.some((s) => /^arXiv:\d{4}\.\d+/.test(s.text)),
+      "arXiv margin stamp is not a sentence",
+    );
+    const s = segments!.find((x) =>
+      x.text.startsWith("The dominant sequence transduction models"),
+    );
+    assert.ok(s, "abstract's first sentence is segmented whole");
+    assert.equal(s.pages[0].pageIndex, 0);
+    // PDF-unit line rects inside the US-letter page box
+    for (const [x0, y0, x1, y1] of s.pages[0].rects) {
+      assert.isTrue(0 <= x0 && x0 < x1 && x1 <= 612, `x in page: ${x0},${x1}`);
+      assert.isTrue(0 <= y0 && y0 < y1 && y1 <= 792, `y in page: ${y0},${y1}`);
+    }
+    // The module cache keeps returning the first success for the reader's
+    // lifetime
     assert.equal(await getSegmentsCached(reader), segments);
   });
 
@@ -124,18 +139,6 @@ describe("adapter smoke (live reader)", function () {
     );
     // Warm-up and the activation path share one cache entry
     assert.equal(await getSegmentsCached(reader), warmed);
-  });
-
-  it("per-page chars expose cloned geometry", async function () {
-    this.timeout(CONVERGE_MS + 5_000);
-    const chars = await until(() => getPageChars(reader, 0), CONVERGE_MS);
-    assert.isArray(chars, "page 0 chars available after render");
-    assert.isAbove(chars!.length, 0);
-    const c = chars![0];
-    assert.isString(c.c);
-    assert.isString(c.u);
-    assert.lengthOf(c.inlineRect, 4);
-    for (const v of c.inlineRect) assert.isNumber(v);
   });
 
   it("outline entries resolve with page indices", async function () {
