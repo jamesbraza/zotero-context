@@ -6,6 +6,7 @@
   - Use a [beta build](https://www.zotero.org/support/beta_builds) if that version is pre-release
 - [Node.js](https://nodejs.org/) latest LTS
 - [prek](https://github.com/j178/prek) for pre-commit hooks
+- [OpenSpec](https://openspec.dev/docs/installation) CLI for spec-driven changes (`openspec/`)
 
 ## Setup
 
@@ -14,7 +15,13 @@ git clone git@github.com:jamesbraza/zotero-context.git
 cd zotero-context
 npm install
 prek install
+openspec init --tools claude
 ```
+
+`openspec init` generates the `/openspec-*` agent skills into `.agents/skills/`.
+They're gitignored, so every fresh Git clone needs this step;
+after upgrading the CLI, run `openspec update` to refresh them.
+Pass other tools to `--tools` (e.g. `claude,codex`) if you use them.
 
 Then create a `.env` pointing at your Zotero binary and development profile.
 On Linux this discovers both automatically
