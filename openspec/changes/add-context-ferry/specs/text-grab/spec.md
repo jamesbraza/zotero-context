@@ -4,16 +4,30 @@
 
 ### Requirement: Sentence-snap hover highlight
 
-While grab mode is active, the plugin SHALL highlight the sentence under the cursor as a single unit (across line wraps, hyphenation, and column/page breaks where geometry allows), computed from the reader's character geometry and sentence segmentation. Highlighting SHALL be computed lazily per page and cached.
+While grab mode is active, the plugin SHALL highlight the sentence under the cursor as a single unit (across line wraps, hyphenation, and column/page breaks where geometry allows), computed from Zotero's structured document text and sentence segmentation.
 
 #### Scenario: Hovering a wrapped sentence
 
 - **WHEN** grab mode is active and the cursor hovers any word of a sentence that spans three rendered lines
 - **THEN** all three line fragments of that sentence highlight together as one unit
 
+#### Scenario: Sentence crossing a page break
+
+- **WHEN** a sentence starts at the bottom of one page and ends at the top of the next
+- **THEN** hovering it on either page highlights that page's fragment, and grabbing it yields the whole sentence
+
 #### Scenario: No text under cursor
 
 - **WHEN** the cursor hovers a region with no extractable text (e.g. a figure bitmap)
+- **THEN** no sentence highlight is shown
+
+### Requirement: Running headers and footers are not snap targets
+
+Running headers, running footers, and page numbers SHALL NOT be sentence-snap targets.
+
+#### Scenario: Hovering a running header
+
+- **WHEN** grab mode is active and the cursor hovers a running header or page number
 - **THEN** no sentence highlight is shown
 
 ### Requirement: Click to grab a sentence
@@ -36,9 +50,19 @@ Shift-clicking another sentence on the same page SHALL extend the pending text g
 
 ### Requirement: Graceful degradation without sentence geometry
 
-If character geometry or segmentation is unavailable for a page (adapter failure, scanned PDF without a text layer), sentence-snap SHALL disable itself for that page without crashing, leaving area grab available.
+If structured text or segmentation is unavailable for a document (adapter failure, failed or password-protected extraction, no text), sentence-snap SHALL disable itself for that reader session without crashing, leaving area grab available.
 
 #### Scenario: Scanned page
 
 - **WHEN** grab mode is active on a page with no text layer
 - **THEN** no hover highlights appear, no error is raised, and two-click area grab still works
+
+#### Scenario: Structured text still being built
+
+- **WHEN** grab mode is active on a document whose structured text Zotero is still building
+- **THEN** clicks perform area grabs, and sentence snap starts once the text is ready
+
+#### Scenario: Document without structured text
+
+- **WHEN** grab mode is active on a document whose structured text cannot be produced
+- **THEN** the user is told text snap is unavailable, and clicks perform area grabs

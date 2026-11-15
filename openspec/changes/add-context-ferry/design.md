@@ -7,7 +7,7 @@ Zotero 7 plugin (`zotero-plugin-scaffold` + `zotero-plugin-toolkit`, TypeScript)
 Research established (see exploration session, 2026-07-21):
 
 - Zotero's reader already ships per-character geometry (`chars` arrays with rects and word/line-break flags via `getPageData`) and word/line snap-selection utilities (`src/pdf/selection.js`: `getClosestOffset`, `getRectsFromChars`, `getSelectionRanges`).
-- Zotero 9 (not 7) ships sentence infrastructure: `sdt-segments.ts` (segmentation via `sentencex-ts`, handling hyphenation/citation markers) and `pdf-position-mapper.ts` (sentence span → pageIndex + rects). AGPL, portable into this AGPL plugin.
+- Zotero's sentence infrastructure, `sdt-segments.ts` (segmentation via `sentencex-ts`, handling hyphenation/citation markers) and `sdt/position-mapper.ts` (sentence span → pageIndex + rects), ships in Zotero 10, built on its Structured Document Text; Zotero 9's Read Aloud built segments from page chars with `Intl.Segmenter`. AGPL, portable into this AGPL plugin.
 - `zotero-plugin-toolkit` `ClipboardHelper` supports `addText`, `addImage(dataURL)`, `addFile(path)`.
 - No existing MCP server exposes live reader state; `cookjohn/zotero-mcp` proves an MCP server can run in-process inside a Zotero plugin on a local HTTP port.
 - claude.ai/desktop accept pasted images (PNG/JPEG, 5MB); mixed text+image single paste and clipboard
@@ -17,14 +17,23 @@ Research established (see exploration session, 2026-07-21):
 
 - **Current Zotero stable is 9.0.6**, not 7.x. Dev loop: Linux Zotero tarball under WSLg (`.env` points at `~/.local/opt/Zotero_linux-x86_64`; requires `libasound2t64` + `libdbus-glib-1-2`).
 - `reader._internalReader._primaryView` reachable; pdf.js (`PDFViewerApplication`) lives directly in the reader iframe (no nested iframe on 9.0.6).
-- **Sentence segments are shipped and callable**: `view._initReadAloudSegments()` returns segments `{anchor, text, position: {pageIndex, rects}, granularity, offsetStart, offsetEnd}` (212 for a 15-page paper), cached on `view._readAloudSegments`. D2 therefore becomes: _call this machinery via the adapter, filter by granularity_; porting sdt-segments/sentencex-ts is the fallback if the private API churns. `sentencex-ts` dependency deferred until needed. The call is a fragile one-shot — it stashes its guard promise before computing and permanently stashes empty results if run before the document loads — so the adapter reads the stash, gates the first call on `numPages`, and clears poisoned stashes (measured: view appears ~1.2s after `Reader.open` resolves, segments at ~3.6s). _The predicted churn has already landed_: Zotero 10.0-beta replaces this machinery with an SDT pipeline (caught by the smoke suite on beta CI, 2026-07-23 — backlog 10.4); CI is pinned to the release channel until the port.
+- **Sentence segments are shipped and callable**: `view._initReadAloudSegments()` returns segments `{anchor, text, position: {pageIndex, rects}, granularity, offsetStart, offsetEnd}` (212 for a 15-page paper), cached on `view._readAloudSegments`. D2 therefore becomes: _call this machinery via the adapter, filter by granularity_; porting sdt-segments/sentencex-ts is the fallback if the private API churns. `sentencex-ts` dependency deferred until needed. The call is a fragile one-shot — it stashes its guard promise before computing and permanently stashes empty results if run before the document loads — so the adapter reads the stash, gates the first call on `numPages`, and clears poisoned stashes (measured: view appears ~1.2s after `Reader.open` resolves, segments at ~3.6s). _The predicted churn landed_: Zotero 10 removed this machinery (caught by the smoke suite on beta CI, 2026-07-23); see spike S3 and D2.
 - Per-char geometry confirmed: `view._pdfPages[pageIndex].chars` with `{c, u, rect, inlineRect, fontSize, fontName, bold, italic, baseline, offset, pageIndex, ...}` — the fallback path and hit-testing substrate.
 - Outline: `pdfDocument.getOutline()` **throws over Xrays** (TypedArray access); works via `Components.utils.waiveXrays(...)` — returned 7 titled items with dests. `view._outline` exists but is lazily populated.
 - Page canvases present (4 mounted, 960×1242 at default zoom) for area rendering; `getPageData` present on the pdfDocument proxy.
 - Programmatic selection exists: `view._setSelectionRanges` / `_getAnnotationFromSelectionRanges` on the view prototype; `view._selectionRanges` readable.
 - Caution: Read Aloud is partly monetized (`_onPurchaseReadAloudCredits`) — we use only the local segmentation, never the TTS/credit path.
 
-**Sentence-geometry alignment (2026-07-22, hard-won):** segment text is
+**Spike S3 findings (2026-11-15, Zotero 10.0.8, resolved — formalized into test/adapter-smoke.test.ts, task 10.4):**
+
+- Zotero 10 builds Structured Document Text (SDT) per document with a local layout model (it backs Read Aloud and Reading Mode). `Zotero.SDT` exposes `getPack`, `ensure`, `getReader`; first generation took 0.9 s for the 15-page fixture, cached afterwards.
+- On desktop no segment builder is callable (`getReadAloudSegments` is mobile-only; `_requestReadAloudSegments` needs Read Aloud playing), but the reader's `_internalReader._loadSDT()` → `{structure, mapper}` works from chrome with `waiveXrays` on the result and `cloneInto(range, readerWindow)` for mapper arguments. It resolves only after generation, caches success, and clears its promise on failure.
+- `mapper.sdtToSourcePosition({start, end})` → `{pageIndex, rects, nextPageRects?}` in PDF units (the chars' space), one rect per line; sub-ranges map exactly. `sourceToSDTPosition` is the reverse.
+- Fixture structure: 142 typed blocks (paragraph, heading, caption, math, table, list, image) with `excluded` (running headers, footers, page numbers) and `auxiliary` flow, part chains across column/page breaks, and outline items that reference blocks. Image blocks are followed by their captions; the title/author block is misclassified as `table` (flagged non-body flow).
+- `_primaryView._pdfRenderer.renderRegionCrops(pageIndex, rects)` renders PNG crops offscreen from pdf.js, independent of zoom (37 ms for a figure).
+- Unverified: scanned/OCR PDFs and large documents.
+
+**Sentence-geometry alignment (2026-07-22, hard-won; superseded by D2's structured-text path, which needs no char alignment):** segment text is
 dehyphenated and ligature-expanded relative to the char-unit array, so naive
 character counting drifts sentence→rect mapping within affected paragraphs
 (symptom: glow offset by characters, or by whole lines when drift crosses a
@@ -78,7 +87,11 @@ Core consumes plain data (char rects, page text, item metadata) so the browser-e
 
 ### D2: Sentence-snap assembled from Zotero's own machinery
 
-Per page (lazily, on first hover in grab mode): pull `chars` via the adapter → assemble logical text with hyphenation/citation handling ported from Zotero 9's `sdt-segments.ts` → segment with `sentencex-ts` (MIT; what Zotero itself uses — better than `Intl.Segmenter` on abbreviations/citations) → precompute per-sentence merged rect lists (à la `getRectsFromChars`). Hover hit-tests against sentence rects; overlay layer draws the glow; click emits a text grab; shift-click extends the sentence range. _Alternatives_: `Intl.Segmenter` (kept as zero-dep fallback), third-party libraries (none attach to Zotero's embedded reader — verified).
+Sentences come from Zotero's structured text (spike S3), loaded once per reader via the adapter (`_loadSDT`). `src/core/sdt-sentences.ts` walks leaf blocks in reading order, pruning `excluded` flow and image blocks (`auxiliary` flow such as captions and footnotes stays snappable); joins part chains split across columns/pages, dropping a line-break hyphen when the next part continues lowercase; splits each chain with `sentencex-ts` (MIT; Zotero's own splitter — better than `Intl.Segmenter` on abbreviations and citations); and cuts each sentence into one SDT range per part, since parts need not be adjacent in content order. The adapter maps every range through the reader's position mapper; the segment cache indexes the sentences per page, so a sentence crossing a page break is a target on both pages. Hover hit-tests against sentence rects; overlay layer draws the glow; click emits a text grab; shift-click extends the sentence range.
+
+A completed `_loadSDT` with no usable sentences (password-protected or failed extraction, no text) is final for the reader session: the hover gate closes and area grab keeps working, rather than every hover re-running extraction while clicks are swallowed as pending. Reopening the reader retries.
+
+_Alternatives_: porting Zotero 10's `sdt-segments.ts` (AGPL, but it imports helpers from `zotero/structured-document-text`, which has no license — so the walking here is written against the SDT schema); rebuilding Zotero 9's paragraphs from char flags (loses the layout model's reading order and header/footer exclusion); third-party libraries (none attach to Zotero's embedded reader — verified). If Zotero exposes `getReadAloudSegments` on desktop, switch to it.
 
 ### D3: Two-click area grab, ephemeral image rendering
 
@@ -134,9 +147,9 @@ Toolbar button + hotkey, with a pref choosing hotkey semantics (toggle vs. press
 
 ## Risks / Trade-offs
 
-- [Reader internals churn between Zotero point releases] → all access confined to the adapter; CI runs `zotero-plugin test` against current Zotero; adapter failures degrade features (e.g. sentence-snap off) rather than crash; Zotero 9's native sentence infra is a future official-API exit ramp.
+- [Reader internals churn between Zotero point releases] → all access confined to the adapter; CI runs `zotero-plugin test` against current Zotero; adapter failures degrade features (e.g. sentence-snap off) rather than crash; a public Zotero API for structured-text segments (e.g. desktop `getReadAloudSegments`) is the future exit ramp.
 - [Mixed text+image single paste may not land in claude.ai (S1)] → floor design (per-grab paste) already satisfies daily use; bundle degrades to text+sequential images.
-- [Sentence segmentation quality on messy PDFs (two-column, math-heavy)] → sentencex + Zotero 9's preprocessing is the current best-in-class; imperfect snaps are still grabbable via shift-extend or area grab.
+- [Sentence segmentation quality on messy PDFs (two-column, math-heavy)] → sentencex over Zotero's layout-model text is the current best-in-class; imperfect snaps are still grabbable via shift-extend or area grab.
 - [Per-page precompute cost on large PDFs] → lazy per-page, cached, computed only in grab mode.
 - [Clipboard behavior differences (Linux/WSL vs Windows/macOS)] → ClipboardHelper has per-platform fallbacks; verify on the user's actual platforms early (Windows host is primary).
 - [MCP port conflicts / client setup friction] → configurable port, graceful disable, README recipes for Claude desktop/Code; clipboard path is always available.
