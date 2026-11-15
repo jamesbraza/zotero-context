@@ -33,7 +33,7 @@
 
 ## 5. Sentence-snap text grab
 
-- [x] 5.1 Text segments via the adapter calling Zotero 9's shipped `_initReadAloudSegments()` (superseded porting sdt-segments/sentencex-ts, which remains the fallback if the private API churns); cached per reader
+- [x] 5.1 Text segments via the adapter calling Zotero 9's shipped `_initReadAloudSegments()` (superseded porting sdt-segments/sentencex-ts, which remains the fallback if the private API churns); cached per reader (replaced by structured text in 10.4)
 - [x] 5.2 Hover hit-testing + sentence glow overlay; no-text-layer pages degrade silently
 - [x] 5.3 Click-to-grab and shift-click range extension in reading order
 - [x] 5.4 Manual check on a two-column (GoBI) and math-heavy (Attention) paper — exposed and fixed the
@@ -92,8 +92,17 @@
 - [ ] 10.1 Manual granularity toggle (sentence/line/paragraph cycle hotkey + default pref)
 - [ ] 10.2 Press-and-hold hotkey semantics pref (deferred from 3.1)
 - [ ] 10.3 Session-recap paste size guardrails (warn when bundle text exceeds chat input limits)
-- [ ] 10.4 Zotero 10 segments port: 10.0-beta removes `_initReadAloudSegments` for an SDT
-      pipeline (`_loadSDT()` + `buildSDTReadAloudSegments`, source-position geometry — caught
-      by the 8.2 smoke suite on beta CI, 2026-07-23); add an adapter path (or the sdt-segments
-      port design.md names as fallback) before Zotero 10 ships, and consider a non-blocking
-      beta CI lane for early churn warning
+- [x] 10.4 Zotero 10 port (Zotero 10 removed `_initReadAloudSegments`): sentences from structured
+      text via `_loadSDT` + the reader's position mapper + `sentencex-ts` (design D2, spike S3);
+      manifest 10.0–10.*; build target firefox140; non-blocking Zotero beta CI lane
+- [ ] 10.5 Manual check on Zotero 10: sentence snap on a two-column paper, including a sentence
+      across a column or page break; the built XPI installs into stock Zotero; a password-protected
+      PDF shows the text-snap-unavailable notice while area grab works
+- [ ] 10.6 Area grabs via the reader's offscreen `renderRegionCrops` (sharp at any zoom; canvas
+      crop as fallback)
+- [ ] 10.7 One-click figure/table/equation grabs from structured-text blocks with their captions
+      (respect `flowClass`: the layout model can misclassify front matter)
+- [ ] 10.8 Section locators from the structured-text outline (block refs) via `sourceToSDTPosition`
+- [ ] 10.9 Paper-intro citation via `Zotero.QuickCopy` (the user's citation style)
+- [ ] 10.10 MCP `get_paper_text` over `Zotero.SDT` (trail-scoped, sectioned by the outline)
+- [ ] 10.11 Structured-text behavior on scanned/OCR PDFs and large documents

@@ -35,7 +35,7 @@ export default defineConfig({
         bundle: true,
         // Users parse this at every Zotero startup; keep dev builds readable
         minify: process.env.NODE_ENV === "production",
-        target: "firefox115",
+        target: "firefox140",
         outfile: `.scaffold/build/addon/content/scripts/${pkg.config.addonRef}.js`,
       },
       // Lazy MCP handler bundle (SDK + zod, the bulk of the script payload):
@@ -47,7 +47,7 @@ export default defineConfig({
         },
         bundle: true,
         minify: process.env.NODE_ENV === "production",
-        target: "firefox115",
+        target: "firefox140",
         outfile: `.scaffold/build/addon/content/scripts/${pkg.config.addonRef}-mcp.js`,
       },
     ],
