@@ -61,38 +61,7 @@ jobs:
           path: .scaffold/cache
           key: scaffold-cache-${{ hashFiles('package-lock.json') }}
           restore-keys: scaffold-cache-
-      - name: Resolve Zotero ${{ matrix.channel }} version
-        id: zotero
-        env:
-          CHANNEL: ${{ matrix.channel }}
-        run: |
-          url=$(curl -fsSLI -o /dev/null -w '%{url_effective}' "https://www.zotero.org/download/client/dl?platform=linux-x86_64&channel=${CHANNEL}")
-          version=$(basename "$(dirname "$url")")
-          # A wrong-but-constant version would silently pin a stale cached
-          # Zotero via the download-skip guard below — fail loudly instead
-          [[ "$version" =~ ^[0-9]+(\.[0-9]+)*(-beta\.[0-9]+(%2B[0-9a-f]+)?)?$ ]] || { echo "unexpected download URL: $url" >&2; exit 1; }
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-      - name: Cache Zotero
-        uses: actions/cache@v6
+      - uses: zotero-plugin-dev/setup-zotero@v1.0.3
         with:
-          path: zotero.tar.xz
-          key: zotero-linux-x86_64-${{ matrix.channel }}-${{ steps.zotero.outputs.version }}
-      # Install the channel explicitly: zotero-plugin-scaffold otherwise
-      # downloads the beta for every run, so the release lane would never
-      # test what users run
-      - name: Install Zotero (${{ matrix.channel }} channel)
-        env:
-          CHANNEL: ${{ matrix.channel }}
-        run: |
-          [ -s zotero.tar.xz ] || wget -qO zotero.tar.xz "https://www.zotero.org/download/client/dl?platform=linux-x86_64&channel=${CHANNEL}"
-          tar -xf zotero.tar.xz
-          echo "ZOTERO_PLUGIN_ZOTERO_BIN_PATH=$PWD/Zotero_linux-x86_64/zotero" >> "$GITHUB_ENV"
-      # Pre-install what zotero-plugin-scaffold's prepareHeadless would
-      # otherwise apt-install silently: its Xvfb launch waits only 2 s for
-      # the display, and on a slow runner the hidden apt phase pushes Xvfb
-      # past that window ("Could not start Xvfb", seen on run 30116604660).
-      # https://github.com/northword/zotero-plugin-scaffold/blob/v0.9.4/src/core/tester/headless.ts#L8-L20
-      # (package list at L70; v0.9.4 matches package-lock.json)
-      - name: Pre-install headless display packages
-        run: sudo apt-get install -y xvfb x11-xkb-utils xkb-data
+          channel: ${{ matrix.channel }}
       - run: npm run test
