@@ -18,6 +18,8 @@ Verified during design (2026-11-18/19):
 - Claude desktop has no "copy link" for a chat; Share → Copy link yields `claude.ai/share/<uuid>` (a different UUID than the chat's `claude.ai/chat/<uuid>`) and makes the chat viewable by anyone with the link.
 - MCP servers receive no conversation identifier, and the model cannot see its own claude.ai URL; Claude Code exposes `session_id` only to hooks.
 - Claudian (Obsidian) runs ordinary Claude Code sessions (Agent SDK over the `claude` CLI, transcripts in `~/.claude/projects`), so its chats resume with `claude --resume <id>`.
+- Spike S3 (2026-11-19, Claude desktop on Windows via `Win+R`): `claude://claude.ai/project/<id>` opens the desktop app on that project's page, where a new chat starts inside the project. So the desktop choice maps a project URL to `claude://claude.ai/project/<id>`.
+- Spike S4 (2026-11-19, source lookup since no Codex install is available): Codex CLI `rust-v0.170.0` accepts `codex resume [SESSION_ID]` where the value is a UUID or a session name (a UUID wins if it parses), plus `--last`, `--all`, and `--include-non-interactive` (https://github.com/openai/codex/blob/rust-v0.170.0/codex-rs/cli/src/main.rs#L364-L388). Parsing accepts `codex resume <uuid-or-name>`; `--last` and a bare `codex resume` name no session, so they are rejected. Codex has no flag to preset a session ID, which confirms Codex links are manual only.
 - AI Chat Referencing v0.1.0 converts a Connector-saved Web Page into a `computerProgram` item with a "Prompts" child note and no Related links.
 
 ## Goals / Non-Goals
@@ -59,7 +61,22 @@ Neither Zotero nor the model can learn a claude.ai chat URL from an external bro
 
 ### D5: claude.ai in a reader side pane
 
-The pane hosts claude.ai as remote, unprivileged content (a content `browser` element with no chrome privileges), so a compromised page cannot reach Zotero APIs. Its cookies live in Zotero's profile; email sign-in is the fallback if Google sign-in rejects embedded browsers. The plugin observes the pane's location: the first `claude.ai/chat/<uuid>` reached after a start links that chat to the paper the start was for, then observation stops (spec: Pane links its first chat). All claude.ai DOM knowledge (chat box selector, file attach, chat title) lives in `src/adapter/chat-pane.ts` with graceful failure results, mirroring the reader adapter, and falls back to the clipboard intro when the page changes. The pane placement relies on reader-pane internals; spike S1 decides between the reader's context pane and an alternative docked element.
+The pane is a `<browser type="content" remote="true" remoteType="web">` appended, after a `<splitter>`, to the reader tab's container (`reader._tabContainer`, a flex row holding the reader's own `browser.reader`). With Fission the page gets its own isolated content process with a `https://claude.ai` content principal, so it cannot reach Zotero APIs. It uses the default cookie jar in Zotero's profile, so sign-in persists; Google sign-in fails in the embedded browser and email sign-in is the supported path.
+
+Page scripting goes through a frame script loaded from a `data:` URI into the pane's message manager. It runs each operation in a `Cu.Sandbox` whose principal and prototype are the page window, so page CSP does not apply and nothing runs with chrome privileges inside the page. Operations: focus the TipTap/ProseMirror editor and `execCommand("insertText")`; build a `File` from the PDF bytes (read in the parent with `IOUtils.read`, sent as message data), put it in a `DataTransfer`, assign it to the page's file input, and dispatch `change`.
+
+Linking uses a progress listener (`NOTIFY_LOCATION`) on the pane browser. The first top-level `claude.ai/chat/<uuid>` location after a start (from `/new` or `/project/<id>`) links that chat to the paper the start was for, then observation stops (spec: Pane links its first chat). The chat title is `document.title` minus its trailing `- Claude`, read once it differs from the bare `Claude`. All claude.ai DOM knowledge lives in `src/adapter/chat-pane.ts` with graceful failure results, mirroring the reader adapter, and falls back to the clipboard intro when the page changes.
+
+**Spike S1/S2 findings (2026-11-19, Zotero 10.0.8 Linux under WSLg, e10s + Fission, uncommitted dev eval harness):**
+
+- **S1 resolved — P2 works: a remote `<browser>` beside the reader.** Appending `<splitter>` + browser to `reader._tabContainer` gives a full-height pane next to the PDF; the splitter resizes it; it survives switching to the library tab and back. `browser.loadURI(uri, { triggeringPrincipal: nullPrincipal })` loads it; `remoteType` resolves to `webIsolated=https://claude.ai`. The `ItemPaneManager` section placement (P1) was not tried: P2 met every criterion, and P1 is a collapsible block in a shared scroll pane.
+- **claude.ai renders with no bot or browser block** under Zotero's UA (`… Gecko/20100101 Zotero/10.0.8`); it lands on `/login` when signed out.
+- **Sign-in: Google fails, email works.** "Continue with Google" shows "There was an error logging you in"; email-code sign-in succeeds.
+- **Sign-in persists across restart.** The page principal is a content principal (`userContextId` 0, not private); `sessionKey` is a persistent cookie (about a month). After a graceful quit and relaunch, a new pane opens directly on `/new`.
+- **Actor modules do not load in the page's content process from the dev build.** A `JSWindowActor` child at `chrome://zoterocontext/…` or a `resource://` substitution to the build directory fails there (parent side loads; child never answers). A frame script from a `data:` URI works. Task 6.1 either keeps the frame script or verifies actor loading from the installed xpi.
+- **S2 resolved — filling the chat box works on `/new` and on `/project/<id>`.** Selectors: editor `.ProseMirror[contenteditable="true"]` (`aria-label="Write your prompt to Claude"`), file input `input[type=file][data-testid="file-upload"]` (multiple), `button[aria-label="Send message"]`, and the attached file renders as `[data-testid="file-thumbnail"]`. `execCommand("insertText")` enables Send; the file-input `DataTransfer` route attaches the PDF (drop and paste routes were not needed).
+- **Linking signal:** on first send the top-level URL changes by `pushState` (`LOCATION_CHANGE_SAME_DOCUMENT`) to `/chat/<uuid>`, reported twice; subframes (`about:blank`, `a.claude.ai/isolated-segment.html`) also report, so the listener filters to top-level `claude.ai/chat/<uuid>` and dedupes. The title goes `Claude` → `<title> - Claude` 2–4 s after the URL change.
+- **Not tested:** Windows Zotero (the user's real setup) and the selector-missing fallback; left to tasks 6.2 and 6.5.
 
 ### D6: Entry points and menus
 
@@ -80,7 +97,9 @@ A Claude Code start calls a new `GrabTrail.admit(paperId)` that adds to the trai
 
 - [claude.ai DOM changes break chat-box filling or title reading] → adapter isolation, graceful fallback to the clipboard intro, smoke test against a fixture, title falls back to `<Tool> chat · <date>`.
 - [Reader side-pane internals change across Zotero majors] → pane mounting lives in the adapter, with smoke coverage.
-- [Embedded sign-in blocked (Google SSO)] → email-code sign-in works; document it.
+- [Embedded sign-in blocked (Google SSO)] → confirmed by spike S1; email-code sign-in works; document it.
+- [Pane mounting uses the private `reader._tabContainer`] → confined to the adapter, covered by `adapter-smoke.test.ts`.
+- [Frame scripts and the message manager are legacy Gecko APIs] → confined to the adapter; actor modules are the fallback if frame scripts go away.
 - [Hosting a third-party site inside Zotero] → unprivileged content browser, no message bridge exposing Zotero APIs; SECURITY.md documents it.
 - [Claude Code notes dangle when the command is never run] → accepted; user deletes the note.
 - [Local sessions expire after `cleanupPeriodDays` (default 30) and resume only on one machine] → the note records `Machine:`; README suggests raising `cleanupPeriodDays`. Transcript copying is a possible follow-up.
@@ -91,8 +110,3 @@ A Claude Code start calls a new `GrabTrail.admit(paperId)` that adds to the trai
 ## Migration Plan
 
 No data migration: the plugin has never written to the library. Ship order inside this change: pure parsing + note store + dialog/menus (usable manual linking) → Claude Code start → desktop/browser start → claude.ai pane (behind its spikes). Rollback = disable the plugin; chat notes are ordinary Zotero notes and remain readable without it.
-
-## Open Questions
-
-- Exact `codex resume` argument forms (spike S4) — affects only parsing patterns.
-- Whether `claude://claude.ai/project/<id>` opens a project in the desktop app (spike S3); if not, the desktop choice opens a plain new chat when a project is set.
