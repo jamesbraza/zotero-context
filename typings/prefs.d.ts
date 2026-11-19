@@ -12,6 +12,7 @@ declare namespace _ZoteroTypes {
       "mcpEnabled": boolean;
       "mcpPort": number;
       "mcpToken": string;
+      "linkChatsInGroups": boolean;
     };
   }
 }

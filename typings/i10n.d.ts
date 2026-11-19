@@ -3,8 +3,10 @@
 /* eslint-disable */
 // @ts-nocheck
 export type FluentMessageId =
+  | 'pref-chat-links-title'
   | 'pref-enable'
   | 'pref-help'
+  | 'pref-link-chats-in-groups'
   | 'pref-mcp-copy-claude-code'
   | 'pref-mcp-copy-config'
   | 'pref-mcp-copy-token'

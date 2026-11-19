@@ -17,9 +17,15 @@ and how to report a vulnerability.
   Its only network component is the optional MCP server,
   which listens on your own machine (127.0.0.1)
   and is unreachable from other machines.
-- No changes to your Zotero library:
+- No changes to your Zotero library beyond chat links you create:
   captured content lives in memory only and is gone when Zotero closes.
-  An automated check keeps library-write calls out of the codebase.
+  The only library writes are chat-link notes you create on purpose
+  (a child note under each paper a chat discussed),
+  their `zotero-context/chat` tag, and Related links among copies of the same chat;
+  annotations and the papers themselves are never touched.
+  Chat links are never written to group libraries unless you turn that on in settings,
+  since group members would see them.
+  An automated check confines library-write calls to that one module.
 
 ## Where your data goes
 

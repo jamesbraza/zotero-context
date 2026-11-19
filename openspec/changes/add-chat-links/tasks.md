@@ -16,10 +16,10 @@
 
 ## 3. Note store
 
-- [ ] 3.1 Implement `src/modules/chat-links/store.ts`: create a chat note under a paper with the tag, find copies by identity, link a chat to more papers with Related among all copies, no-op on duplicates; verify with Zotero-side tests that create and erase test items
-- [ ] 3.2 Add edit propagation (rewrite title + fields in every copy, keep each copy's notes); verify with a test editing a chat linked to two papers
-- [ ] 3.3 Add the "Link chats in group libraries" pref (default off) and refuse group-library writes in the store when off; verify with a test against a group-library item or a stubbed library type
-- [ ] 3.4 Update SECURITY.md ("What this plugin does not do") to describe the narrow write exception and the group default; verify the text matches the "Narrow library-write scope" requirement
+- [x] 3.1 Implement `src/modules/chat-links/store.ts`: create a chat note under a paper with the tag, find copies by identity, link a chat to more papers with Related among all copies, no-op on duplicates; verify with Zotero-side tests that create and erase test items
+- [x] 3.2 Add edit propagation (rewrite title + fields in every copy, keep each copy's notes); verify with a test editing a chat linked to two papers
+- [x] 3.3 Add the "Link chats in group libraries" pref (default off) and refuse group-library writes in the store when off; verify with a test against a group-library item or a stubbed library type
+- [x] 3.4 Update SECURITY.md ("What this plugin does not do") to describe the narrow write exception and the group default; verify the text matches the "Narrow library-write scope" requirement
 
 ## 4. Manual linking UI
 
