@@ -2,16 +2,16 @@
 
 ## 1. De-risking spikes (throwaway code, findings recorded in design.md)
 
-- [ ] 1.1 S1: Mount a remote, unprivileged claude.ai content browser in the reader's side area on Zotero 10/11; record placement option, sign-in persistence across restart, and Google vs email sign-in in design.md D5
-- [ ] 1.2 S2: In that pane, attach a local PDF and insert text into claude.ai's chat box, observe the URL change to `/chat/<uuid>` on first send, and read the chat title; record selectors/approach and failure modes in design.md D5
-- [ ] 1.3 S3: Run `claude://claude.ai/project/<id>` on Windows; record whether the desktop app opens the project, and resolve the matching Open Question in design.md
-- [ ] 1.4 S4: Record the argument forms `codex resume` accepts (ID, `--last`, …) and resolve the matching Open Question in design.md
+- [x] 1.1 S1: Mount a remote, unprivileged claude.ai content browser in the reader's side area on Zotero 10/11; record placement option, sign-in persistence across restart, and Google vs email sign-in in design.md D5 — WORKS (remote browser beside the reader in `_tabContainer`; email sign-in only; persists across restart)
+- [x] 1.2 S2: In that pane, attach a local PDF and insert text into claude.ai's chat box, observe the URL change to `/chat/<uuid>` on first send, and read the chat title; record selectors/approach and failure modes in design.md D5 — WORKS (insertText + file-input DataTransfer via a `data:` frame script; `/chat/<uuid>` by pushState)
+- [x] 1.3 S3: Run `claude://claude.ai/project/<id>` on Windows; record whether the desktop app opens the project, and resolve the matching Open Question in design.md — WORKS (opens the project page in Claude desktop)
+- [x] 1.4 S4: Record the argument forms `codex resume` accepts (ID, `--last`, …) and resolve the matching Open Question in design.md — DONE by source lookup (`codex resume <uuid-or-name>`; no preset-ID flag)
 
 ## 2. Write rule and parsing core
 
 - [ ] 2.1 Amend `openspec/config.yaml` invariant to "Grabs are ephemeral; the only library writes are chat-link notes, their tag, and Related links (see add-chat-links)"; verify `openspec validate add-chat-links --strict` still passes
 - [ ] 2.2 Add an eslint override exempting only `src/modules/chat-links/store.ts` from the `no-restricted-syntax` write ban; verify `npm run lint:check` fails on a write call placed in any other file and passes otherwise
-- [ ] 2.3 Implement pure link parsing and normalization in `src/core/` (http(s) URLs, claude.ai `/chat/` `/share/` `/code/`, ChatGPT/Codex URLs, bare UUID, `claude --resume <id-or-name>`, `codex resume <id>`, names; identity normalization); verify with unit tests in `test/core.test.ts` covering every scenario of the "Accepted link inputs" and "Format-only validation" requirements
+- [ ] 2.3 Implement pure link parsing and normalization in `src/core/` (http(s) URLs, claude.ai `/chat/` `/share/` `/code/`, ChatGPT/Codex URLs, bare UUID, `claude --resume <id-or-name>`, `codex resume <id-or-name>`, names; identity normalization); verify with unit tests in `test/core.test.ts` covering every scenario of the "Accepted link inputs" and "Format-only validation" requirements
 - [ ] 2.4 Implement pure note rendering and parsing in `src/core/` (title line, labeled fields, user-notes area preserved on rewrite, topic fallback); verify round-trip unit tests including hand-edited fields
 
 ## 3. Note store

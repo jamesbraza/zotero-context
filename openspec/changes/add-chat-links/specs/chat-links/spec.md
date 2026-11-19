@@ -54,7 +54,7 @@ The plugin SHALL read a chat's identity and fields from the note's visible label
 
 ### Requirement: Accepted link inputs
 
-Linking SHALL accept any http(s) URL, a bare session UUID, `claude --resume <id-or-name>`, `codex resume <id>`, or a session name. claude.ai `/chat/` and `/share/` URLs, `claude.ai/code/` URLs, ChatGPT and Codex URLs, Claude Code sessions, and Codex sessions SHALL be recognized and labeled with their tool.
+Linking SHALL accept any http(s) URL, a bare session UUID, `claude --resume <id-or-name>`, `codex resume <id-or-name>`, or a session name. claude.ai `/chat/` and `/share/` URLs, `claude.ai/code/` URLs, ChatGPT and Codex URLs, Claude Code sessions, and Codex sessions SHALL be recognized and labeled with their tool.
 
 #### Scenario: Pasting a Claude Code exit line
 
