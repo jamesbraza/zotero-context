@@ -68,5 +68,10 @@
         }
       }
     ]
+  },
+  "allowScripts": {
+    "@swc/core": false,
+    "es5-ext": false,
+    "esbuild": false
   }
 }
