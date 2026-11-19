@@ -2,7 +2,14 @@
   "extends": "zotero-types/entries/sandbox/",
   "compilerOptions": {
     "noUncheckedIndexedAccess": true,
-    "exactOptionalPropertyTypes": true
+    "exactOptionalPropertyTypes": true,
+    "noImplicitOverride": true,
+    "noImplicitReturns": true,
+    "allowUnreachableCode": false,
+    // esbuild bundles each file in isolation, so keep TS-only syntax erasable
+    // and type-only imports explicit
+    "erasableSyntaxOnly": true,
+    "verbatimModuleSyntax": true
   },
   "include": ["src", "typings"],
   "exclude": ["build", "addon"]
