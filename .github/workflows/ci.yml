@@ -18,10 +18,10 @@ jobs:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - name: Setup JS
-        uses: zotero-plugin-dev/workflows/setup-js@v1.0.0
+        uses: zotero-plugin-dev/workflows/setup-js@v1.1.0
         with:
           persist-credentials: "false"
-      - uses: j178/prek-action@v3.1.0
+      - uses: j178/prek-action@v3.1.1
 
   build:
     runs-on: ubuntu-latest
@@ -29,7 +29,7 @@ jobs:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - name: Setup JS
-        uses: zotero-plugin-dev/workflows/setup-js@v1.0.0
+        uses: zotero-plugin-dev/workflows/setup-js@v1.1.0
         with:
           persist-credentials: "false"
       - name: Run Build
@@ -59,7 +59,7 @@ jobs:
     continue-on-error: ${{ matrix.channel == 'beta' }}
     steps:
       - name: Setup JS
-        uses: zotero-plugin-dev/workflows/setup-js@v1.0.0
+        uses: zotero-plugin-dev/workflows/setup-js@v1.1.0
         with:
           persist-credentials: "false"
       # Scaffold caches chai.js here; a warm cache also silences its
