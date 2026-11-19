@@ -1,6 +1,7 @@
 import {
   BasicTool,
   ClipboardHelper,
+  DialogHelper,
   KeyboardManager,
   makeHelperTool,
   ProgressWindowHelper,
@@ -40,6 +41,7 @@ class ZoteroToolkit extends BasicTool {
   UI: UITool;
   Keyboard: KeyboardManager;
   Clipboard: typeof ClipboardHelper;
+  Dialog: typeof DialogHelper;
   ProgressWindow: typeof ProgressWindowHelper;
 
   constructor() {
@@ -47,6 +49,7 @@ class ZoteroToolkit extends BasicTool {
     this.UI = new UITool(this);
     this.Keyboard = new KeyboardManager(this);
     this.Clipboard = makeHelperTool(ClipboardHelper, this);
+    this.Dialog = makeHelperTool(DialogHelper, this);
     this.ProgressWindow = makeHelperTool(ProgressWindowHelper, this);
   }
 

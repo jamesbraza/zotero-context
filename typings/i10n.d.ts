@@ -3,6 +3,11 @@
 /* eslint-disable */
 // @ts-nocheck
 export type FluentMessageId =
+  | 'menu-also-link-to'
+  | 'menu-copy-resume-command'
+  | 'menu-edit-chat-link'
+  | 'menu-link-chat'
+  | 'menu-open-chat-link'
   | 'pref-chat-links-title'
   | 'pref-enable'
   | 'pref-help'

@@ -23,10 +23,10 @@
 
 ## 4. Manual linking UI
 
-- [ ] 4.1 Register item context menus via `Zotero.MenuManager` (`Link chat…` on regular items; `Also link to…`, `Edit chat link…`, `Copy resume command`, `Open chat link` on tagged chat notes), unregistered on shutdown, strings in `mainWindow.ftl`; verify menus appear only on the right item types in a dev build
-- [ ] 4.2 Build the Link chat dialog (paste field with inline validation, Title field, existing-chats list newest first, group notice or opt-in explanation); verify each "Link chat dialog" and "Group libraries are opt-in" scenario in a dev build
-- [ ] 4.3 Implement the chat-note actions (item picker for Also link to…, edit dialog prefilled, copy resume command to clipboard without launching anything, open web link in browser); verify each "Chat note actions" scenario in a dev build
-- [ ] 4.4 Manual e2e: link a real claude.ai chat URL and a real `claude --resume <id>` line to a real paper, add a second paper via Also link to…, retitle via Edit chat link…, and confirm Related, tags, and per-copy notes in Zotero
+- [x] 4.1 Register item context menus via `Zotero.MenuManager` (`Link chat…` on regular items; `Also link to…`, `Edit chat link…`, `Copy resume command`, `Open chat link` on tagged chat notes), unregistered on shutdown, strings in `mainWindow.ftl`; verify menus appear only on the right item types in a dev build
+- [x] 4.2 Build the Link chat dialog (paste field with inline validation, Title field, existing-chats list newest first, group notice or opt-in explanation); verify each "Link chat dialog" and "Group libraries are opt-in" scenario in a dev build
+- [x] 4.3 Implement the chat-note actions (item picker for Also link to…, edit dialog prefilled, copy resume command to clipboard without launching anything, open web link in browser); verify each "Chat note actions" scenario in a dev build
+- [x] 4.4 Manual e2e: link a real claude.ai chat URL and a real `claude --resume <id>` line to a real paper, add a second paper via Also link to…, retitle via Edit chat link…, and confirm Related, tags, and per-copy notes in Zotero
 
 ## 5. Starting chats from Zotero
 

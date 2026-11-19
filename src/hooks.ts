@@ -1,5 +1,9 @@
 import { initLocale } from "./utils/locale";
 import { registerBundleDelivery } from "./modules/bundle-delivery";
+import {
+  registerChatLinkMenus,
+  unregisterChatLinkMenus,
+} from "./modules/chat-links/menus";
 import { deactivateAllGrabModes, registerGrabMode } from "./modules/grab-mode";
 import {
   mcpPrefsApi,
@@ -26,6 +30,7 @@ async function onStartup() {
   registerPaperIntro();
   registerBundleDelivery();
   registerMcpServer();
+  registerChatLinkMenus();
   addon.api.mcp = mcpPrefsApi;
 
   for (const win of Zotero.getMainWindows()) {
@@ -62,6 +67,7 @@ function onShutdown(): void {
   deactivateAllGrabModes();
   // The MCP socket would likewise outlive a disabled plugin
   unregisterMcpServer();
+  unregisterChatLinkMenus();
   delete addon.api.mcp;
   ztoolkit.unregisterAll();
   // Remove addon object

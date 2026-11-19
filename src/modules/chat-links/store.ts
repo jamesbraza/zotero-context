@@ -40,7 +40,9 @@ export function chatCopyOf(item: Zotero.Item): ChatCopy | null {
 }
 
 /** Every chat-note copy in a library (trashed notes excluded). */
-async function chatCopiesInLibrary(libraryID: number): Promise<ChatCopy[]> {
+export async function chatCopiesInLibrary(
+  libraryID: number,
+): Promise<ChatCopy[]> {
   const search = new Zotero.Search({ libraryID });
   search.addCondition("tag", "is", CHAT_TAG);
   search.addCondition("itemType", "is", "note");
@@ -60,10 +62,24 @@ export async function copiesOf(
 }
 
 /** Group libraries need the opt-in pref (spec: "Group libraries are opt-in"). */
-function canLinkInLibrary(libraryID: number): boolean {
+export function canLinkInLibrary(libraryID: number): boolean {
   const library = Zotero.Libraries.get(libraryID);
   if (!library) return false;
   return groupWriteAllowed(library.libraryType, getPref("linkChatsInGroups"));
+}
+
+export function isGroupLibrary(libraryID: number): boolean {
+  const library = Zotero.Libraries.get(libraryID);
+  return library ? library.libraryType === "group" : false;
+}
+
+/** This computer's name, for the `Machine:` field of CLI sessions. */
+export function thisMachine(): string {
+  try {
+    return Services.dns.myHostName;
+  } catch {
+    return "";
+  }
 }
 
 function paperHasChat(paper: Zotero.Item, identity: string): boolean {

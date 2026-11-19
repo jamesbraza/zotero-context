@@ -1,1 +1,10 @@
-# No main-window strings yet.
+menu-link-chat =
+    .label = Link chat…
+menu-also-link-to =
+    .label = Also link to…
+menu-edit-chat-link =
+    .label = Edit chat link…
+menu-copy-resume-command =
+    .label = Copy resume command
+menu-open-chat-link =
+    .label = Open chat link
