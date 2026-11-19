@@ -49,7 +49,7 @@
 ## 7. Docs and release gating
 
 - [ ] 7.1 Update README.md (chat links feature, Preferred chat, hotkey/toolbar behavior, `cleanupPeriodDays` tip for Claude Code, group opt-in, MCP scope note); verify every documented menu item and setting exists in a dev build
-- [ ] 7.2 Update `openspec/changes/add-context-ferry/tasks.md` task 8.3 to also wait on add-chat-links, and its proposal/design non-goal lines to point here; verify `openspec validate add-context-ferry --strict` passes
+- [x] 7.2 Update `openspec/changes/add-context-ferry/tasks.md` task 8.3 to also wait on add-chat-links, and its proposal/design non-goal lines to point here; verify `openspec validate add-context-ferry --strict` passes
 - [ ] 7.3 Integration check: `npm run lint:check`, `npm run typecheck`, and `npm test` pass; `openspec validate add-chat-links --strict` passes
 
 ## Workflow follow-up

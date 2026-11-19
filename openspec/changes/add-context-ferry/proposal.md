@@ -16,7 +16,7 @@ Active readers of paper PDFs constantly interrupt their thinking to ferry contex
 - Deliver grabs by **pull (MCP)**: an in-process MCP server (Streamable HTTP on a local port; opt-in, token-authenticated) exposing the grab trail and fetch-PDF-by-item tools, so MCP clients (Claude Code, Claude desktop) can pull the paper and grabs without manual upload.
 - Add a **paper intro** action: one click copies an introduction blurb (citation + abstract + "PDF attached") to start a chat session.
 
-Explicitly out of scope for v0.1: element-picking (click a figure and have it auto-bounded), persistent grabs-as-annotations, writing AI answers back into Zotero, and the browser-extension sibling (kept viable by keeping core logic viewer-agnostic).
+Explicitly out of scope for v0.1: element-picking (click a figure and have it auto-bounded), persistent grabs-as-annotations, writing AI answers back into Zotero, and the browser-extension sibling (kept viable by keeping core logic viewer-agnostic). Linking chats to papers (metadata-only notes) joins v0.1 through the separate `add-chat-links` change.
 
 Committed roadmap beyond v0.1 (v0.1 must not foreclose these):
 
