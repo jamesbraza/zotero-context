@@ -65,6 +65,12 @@ const zoteroConfig = zotero({
 export default tseslint.config(
   ...zoteroConfig,
   {
+    linterOptions: {
+      reportUnusedDisableDirectives: "error",
+      reportUnusedInlineConfigs: "error",
+    },
+  },
+  {
     // Type-aware linting on top of the zotero config's non-type-aware
     // typescript-eslint recommended
     files: ["src/**/*.ts", "test/**/*.ts"],

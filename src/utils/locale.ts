@@ -1,5 +1,5 @@
 import { config } from "../../package.json";
-import { FluentMessageId } from "../../typings/i10n";
+import type { FluentMessageId } from "../../typings/i10n";
 
 /**
  * Unprefixed ftl key as written in addon/locale (e.g. "prefs-title").
