@@ -60,7 +60,7 @@ canvas's CSS rect (Zotero's CSS zoom drifts from viewport scale).
 **Non-Goals:**
 
 - Embedded chat UI, AI API calls, or prompt management (the user's existing chat is the UI).
-- Element-picking (auto-bounding figures), persistent grab annotations, writing chat output back to Zotero, browser extension (roadmap, not v0.1).
+- Element-picking (auto-bounding figures), persistent grab annotations, writing chat output back to Zotero, browser extension (roadmap, not v0.1). Linking chats to papers (metadata-only notes, never chat content) is in v0.1 via `add-chat-links`.
 - Live reader-state sync (current scroll/tab) — the grab trail is the source of truth, not "what is open right now". A "what's on screen" co-reading tool was considered and deliberately skipped.
 - Context enrichment beyond locators (resolving citation markers, notation definitions, surrounding paragraphs into headers) — rejected as duplicative of the attached PDF; see the lean-pointers goal.
 

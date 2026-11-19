@@ -70,7 +70,7 @@
       (test/adapter-smoke.test.ts: arXiv fixture imported on demand, chars/segments/outline/
       canvas-crop surfaces + early-race segment convergence) so reader-internals churn is caught
       in CI on Zotero updates
-- [ ] 8.3 Tag v0.1.0 release via CI release flow (after groups 7 and 9)
+- [ ] 8.3 Tag v0.1.0 release via CI release flow (after groups 7 and 9, and the `add-chat-links` change)
 
 ## 9. Documentation
 
