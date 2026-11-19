@@ -34,9 +34,9 @@
     "update-deps": "npm update --save"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@modelcontextprotocol/sdk": "^1.32.2",
     "sentencex-ts": "^0.1.13-ts",
-    "zod": "^4.4.3",
+    "zod": "^4.6.7",
     "zotero-plugin-toolkit": "^6.0.0"
   },
   "devDependencies": {
@@ -46,11 +46,11 @@
     "@zotero-plugin/eslint-config": "^0.6.10",
     "chai": "^6.3.0",
     "eslint": "^10.15.0",
-    "knip": "^6.29.0",
+    "knip": "^6.46.0",
     "mocha": "^12.0.3",
     "prettier": "^3.10.1",
     "typescript": "^6.0.3",
-    "typescript-eslint": "^8.72.2",
+    "typescript-eslint": "^8.73.0",
     "zotero-plugin-scaffold": "^0.9.4",
     "zotero-types": "^4.1.3"
   },
