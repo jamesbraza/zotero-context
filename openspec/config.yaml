@@ -17,7 +17,9 @@ context: |
   - src/modules/: the UI shell (grab mode, clipboard, preferences, MCP server)
 
   Invariants:
-  - Grabs are ephemeral: never call annotation or save APIs
+  - Grabs are ephemeral; the only library writes are chat-link notes, their
+    tag, and Related links among them, confined to
+    src/modules/chat-links/store.ts (see add-chat-links)
   - The MCP server is off by default, binds to 127.0.0.1, and requires a bearer
     token; see SECURITY.md before changing its surface
   - Reader internals churn across Zotero majors, so adapter changes need

@@ -9,10 +9,10 @@
 
 ## 2. Write rule and parsing core
 
-- [ ] 2.1 Amend `openspec/config.yaml` invariant to "Grabs are ephemeral; the only library writes are chat-link notes, their tag, and Related links (see add-chat-links)"; verify `openspec validate add-chat-links --strict` still passes
-- [ ] 2.2 Add an eslint override exempting only `src/modules/chat-links/store.ts` from the `no-restricted-syntax` write ban; verify `npm run lint:check` fails on a write call placed in any other file and passes otherwise
-- [ ] 2.3 Implement pure link parsing and normalization in `src/core/` (http(s) URLs, claude.ai `/chat/` `/share/` `/code/`, ChatGPT/Codex URLs, bare UUID, `claude --resume <id-or-name>`, `codex resume <id-or-name>`, names; identity normalization); verify with unit tests in `test/core.test.ts` covering every scenario of the "Accepted link inputs" and "Format-only validation" requirements
-- [ ] 2.4 Implement pure note rendering and parsing in `src/core/` (title line, labeled fields, user-notes area preserved on rewrite, topic fallback); verify round-trip unit tests including hand-edited fields
+- [x] 2.1 Amend `openspec/config.yaml` invariant to "Grabs are ephemeral; the only library writes are chat-link notes, their tag, and Related links (see add-chat-links)"; verify `openspec validate add-chat-links --strict` still passes
+- [x] 2.2 Add an eslint override exempting only `src/modules/chat-links/store.ts` from the `no-restricted-syntax` write ban; verify `npm run lint:check` fails on a write call placed in any other file and passes otherwise
+- [x] 2.3 Implement pure link parsing and normalization in `src/core/` (http(s) URLs, claude.ai `/chat/` `/share/` `/code/`, ChatGPT/Codex URLs, bare UUID, `claude --resume <id-or-name>`, `codex resume <id-or-name>`, names; identity normalization); verify with unit tests in `test/core.test.ts` covering every scenario of the "Accepted link inputs" and "Format-only validation" requirements
+- [x] 2.4 Implement pure note rendering and parsing in `src/core/` (title line, labeled fields, user-notes area preserved on rewrite, topic fallback); verify round-trip unit tests including hand-edited fields
 
 ## 3. Note store
 

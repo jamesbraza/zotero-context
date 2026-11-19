@@ -19,10 +19,17 @@ const zoteroConfig = zotero({
             selector:
               "CallExpression[callee.property.name=/^(saveTx|eraseTx|addAnnotation|saveAnnotations|saveFromJSON|createAnnotation)$/]",
             message:
-              "Grabs are ephemeral: no annotation creation or library writes.",
+              "Grabs are ephemeral: no annotation creation or library writes " +
+              "(chat-link writes belong in src/modules/chat-links/store.ts).",
           },
         ],
       },
+    },
+    {
+      // The one sanctioned writer (add-chat-links design D7): chat-link notes,
+      // their tag, and Related links among them. Keep every other write out.
+      files: ["src/modules/chat-links/store.ts"],
+      rules: { "no-restricted-syntax": "off" },
     },
     {
       // src/core is viewer-agnostic: no Zotero globals or plugin imports,
