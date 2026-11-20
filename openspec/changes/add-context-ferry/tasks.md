@@ -70,7 +70,8 @@
       (test/adapter-smoke.test.ts: arXiv fixture imported on demand, chars/segments/outline/
       canvas-crop surfaces + early-race segment convergence) so reader-internals churn is caught
       in CI on Zotero updates
-- [ ] 8.3 Tag v0.1.0 release via CI release flow (after groups 7 and 9, and the `add-chat-links` change)
+- [ ] 8.3 Tag v0.1.0 release via CI release flow (after groups 7 and 9; the `add-chat-links`
+      prerequisite is met: archived 2026-11-20 as `openspec/changes/archive/2026-11-20-add-chat-links/`)
 
 ## 9. Documentation
 
@@ -81,7 +82,8 @@
       sequence diagram, two-step setup recipes (enable in prefs, then Claude Code `claude mcp add` /
       cross-client `mcpServers` config JSON), token recovery, port-conflict troubleshooting via the status line,
       security posture as deliberate properties, claude.ai localhost limitation, Windows-Zotero +
-      WSL-Claude-Code path caveat
+      WSL-Claude-Code path caveat (verified 2026-11-20 while building chat links: Claude Code in WSL
+      reads `C:\` paths by translating them to `/mnt/c/...` itself; the README already says so)
 - [x] 9.3 README: known limitations and roadmap pointers (element-picking deferred, scans use
       line-level snap, browser-extension sibling planned; link openspec change for details)
 - [x] 9.4 CONTRIBUTING.md: dev-loop notes (Linux Zotero under WSLg, `.env` setup, Windows XPI
@@ -107,6 +109,19 @@
 - [ ] 10.9 Paper-intro citation via `Zotero.QuickCopy` (the user's citation style)
 - [ ] 10.10 MCP `get_paper_text` over `Zotero.SDT` (trail-scoped, sectioned by the outline)
 - [ ] 10.11 Structured-text behavior on scanned/OCR PDFs and large documents
+- [ ] 10.12 Reader toolbar buttons from a previous plugin instance (⌖ grab mode, 💬 New chat) stay
+      in already-open reader tabs after a plugin reload or update and keep calling the old build's
+      code until the tab is reopened; remove or re-render them on shutdown (seen while building chat
+      links, 2026-11-20)
+- [ ] 10.13 Optional setting to skip Zotero's "Open the claude link with Claude?" confirmation for
+      `claude://` links (per-scheme pref `network.protocol-handler.warn-external.claude`); today it
+      appears each time a chat starts in the Claude desktop app
+- [ ] 10.14 "Start and link immediately" for other agent harnesses that accept a caller-chosen
+      session ID, like Claude Code's `--session-id`: Gemini CLI, Qwen Code, Copilot CLI, and Pi
+      (`--session-id`; syntax sources in the archived add-chat-links design.md)
+- [ ] 10.15 Resume commands for harnesses that look sessions up per working directory (Gemini,
+      Qwen, Pi, Codex) may need a `cd` into the original folder; `claude --resume <id>` was
+      verified folder-independent. Revisit if users hit it
 
 ## 11. Manual checks on Zotero 10 (to test)
 
@@ -119,3 +134,10 @@
       highlighting appears
 - [ ] 11.5 A password-protected PDF shows "Text snap unavailable on this document — area grab still
       works", and area grab works
+
+## Workflow follow-up
+
+- `openspec/specs/mcp-delivery/` already exists (created by archiving add-chat-links, with its
+  "Introduced papers join retrieval scope" requirement), so archiving this change adds its
+  `mcp-delivery` requirements to that spec rather than creating it. Re-read "Trail is the identity"
+  against that requirement then: introduced papers count as present in the trail.
