@@ -31,6 +31,8 @@ import {
   groupWriteAllowed,
   parseChatInput,
   resumeCommand,
+  OTHER_HARNESS,
+  withHarness,
   type ChatRef,
 } from "../src/core/chat-link";
 import {
@@ -110,37 +112,105 @@ const CHAT_INPUT_CASES: { name: string; input: string; expected: ChatRef }[] = [
   {
     name: "Claude Code exit line",
     input: `claude --resume ${SESSION_ID}`,
-    expected: { kind: "session", tool: "claude-code", sessionId: SESSION_ID },
+    expected: {
+      kind: "session",
+      harness: "claude-code",
+      sessionId: SESSION_ID,
+    },
   },
   {
     name: "claude -r with an uppercase UUID",
     input: `claude -r ${SESSION_ID.toUpperCase()}`,
-    expected: { kind: "session", tool: "claude-code", sessionId: SESSION_ID },
+    expected: {
+      kind: "session",
+      harness: "claude-code",
+      sessionId: SESSION_ID,
+    },
   },
   {
     name: "claude --resume with a quoted name",
     input: `claude --resume "vaswani 2017"`,
-    expected: { kind: "session", tool: "claude-code", name: "vaswani 2017" },
+    expected: { kind: "session", harness: "claude-code", name: "vaswani 2017" },
   },
   {
     name: "codex resume by ID",
     input: `codex resume ${SESSION_ID}`,
-    expected: { kind: "session", tool: "codex", sessionId: SESSION_ID },
+    expected: { kind: "session", harness: "codex", sessionId: SESSION_ID },
   },
   {
     name: "codex resume by name",
     input: "codex resume attn-repro",
-    expected: { kind: "session", tool: "codex", name: "attn-repro" },
+    expected: { kind: "session", harness: "codex", name: "attn-repro" },
   },
   {
     name: "bare UUID defaults to Claude Code",
     input: SESSION_ID,
-    expected: { kind: "session", tool: "claude-code", sessionId: SESSION_ID },
+    expected: {
+      kind: "session",
+      harness: "claude-code",
+      sessionId: SESSION_ID,
+    },
   },
   {
     name: "bare name defaults to Claude Code",
     input: "vaswani-2017",
-    expected: { kind: "session", tool: "claude-code", name: "vaswani-2017" },
+    expected: { kind: "session", harness: "claude-code", name: "vaswani-2017" },
+  },
+];
+
+const HARNESS_CASES: { name: string; input: string; expected: ChatRef }[] = [
+  {
+    name: "Codex exec resume with --",
+    input: `codex exec resume -- ${SESSION_ID}`,
+    expected: { kind: "session", harness: "codex", sessionId: SESSION_ID },
+  },
+  {
+    name: "Gemini CLI",
+    input: `gemini --resume ${SESSION_ID}`,
+    expected: { kind: "session", harness: "gemini", sessionId: SESSION_ID },
+  },
+  {
+    name: "Qwen Code by title",
+    input: "qwen -r attention-notes",
+    expected: { kind: "session", harness: "qwen", name: "attention-notes" },
+  },
+  {
+    name: "Copilot CLI",
+    input: `copilot --resume=${SESSION_ID}`,
+    expected: { kind: "session", harness: "copilot", sessionId: SESSION_ID },
+  },
+  {
+    name: "OpenCode, ignoring a trailing prompt",
+    input: 'opencode run -s ses_01JABCDEFGHJKMNPQRSTVWXYZ0 "keep going"',
+    expected: {
+      kind: "session",
+      harness: "opencode",
+      sessionId: "ses_01JABCDEFGHJKMNPQRSTVWXYZ0",
+    },
+  },
+  {
+    name: "Pi",
+    input: "pi --session 0193b3c4-8f1e-7a2b-9c3d-4e5f6a7b8c9d",
+    expected: {
+      kind: "session",
+      harness: "pi",
+      sessionId: "0193b3c4-8f1e-7a2b-9c3d-4e5f6a7b8c9d",
+    },
+  },
+  {
+    name: "Cursor CLI (legacy binary, quoted ID)",
+    input: 'cursor-agent --resume="chat-abc123"',
+    expected: { kind: "session", harness: "cursor", sessionId: "chat-abc123" },
+  },
+  {
+    name: "Grok CLI",
+    input: "grok -s 3f2a9c1b7d4e",
+    expected: { kind: "session", harness: "grok", sessionId: "3f2a9c1b7d4e" },
+  },
+  {
+    name: "Amp",
+    input: "amp threads continue T-5f1c2d3e",
+    expected: { kind: "session", harness: "amp", sessionId: "T-5f1c2d3e" },
   },
 ];
 
@@ -154,6 +224,9 @@ const CHAT_INPUT_ERRORS: { name: string; input: string }[] = [
   { name: "codex resume --last", input: "codex resume --last" },
   { name: "flag-like name", input: "--continue" },
   { name: "overlong name", input: "x".repeat(101) },
+  { name: "Gemini resume latest", input: "gemini --resume latest" },
+  { name: "Grok resume latest", input: "grok -s latest" },
+  { name: "Pi picker (no session)", input: "pi -r" },
 ];
 
 const WEB_FIELDS: ChatNoteFields = {
@@ -167,7 +240,7 @@ const WEB_FIELDS: ChatNoteFields = {
 };
 
 const SESSION_FIELDS: ChatNoteFields = {
-  ref: { kind: "session", tool: "claude-code", sessionId: SESSION_ID },
+  ref: { kind: "session", harness: "claude-code", sessionId: SESSION_ID },
   topic: "vaswani-2017",
   started: "2026-11-19",
   machine: "DESKTOP-ABC",
@@ -1247,6 +1320,14 @@ describe("core", function () {
       });
     }
 
+    for (const { name, input, expected } of HARNESS_CASES) {
+      it(`parses ${name}`, function () {
+        const result = parseChatInput(input);
+        assert.isTrue(result.ok, JSON.stringify(result));
+        assert.deepEqual(result.ref, expected);
+      });
+    }
+
     for (const { name, input } of CHAT_INPUT_ERRORS) {
       it(`rejects ${name}`, function () {
         const result = parseChatInput(input);
@@ -1254,6 +1335,44 @@ describe("core", function () {
         assert.isNotEmpty(result.error);
       });
     }
+
+    it("flags bare input and re-reads it for the chosen harness", function () {
+      const uuid = parseChatInput(SESSION_ID);
+      const cmd = parseChatInput(`codex resume ${SESSION_ID}`);
+      assert.isTrue(uuid.ok && cmd.ok);
+      assert.isTrue(uuid.ok && uuid.bare);
+      assert.isFalse(cmd.ok && cmd.bare === true);
+      const bareName = parseChatInput("ses_01JABC");
+      assert.isTrue(bareName.ok);
+      // OpenCode has no named sessions, so a bare token is its session ID
+      assert.deepEqual(withHarness(bareName.ref, "opencode"), {
+        ok: true,
+        ref: { kind: "session", harness: "opencode", sessionId: "ses_01JABC" },
+      });
+      assert.deepEqual(
+        withHarness(bareName.ref, OTHER_HARNESS, {
+          label: "Aider",
+          command: "aider --restore ses_01JABC",
+        }),
+        {
+          ok: true,
+          ref: {
+            kind: "session",
+            harness: OTHER_HARNESS,
+            label: "Aider",
+            sessionId: "ses_01JABC",
+            command: "aider --restore ses_01JABC",
+          },
+        },
+      );
+      assert.isFalse(
+        withHarness(bareName.ref, OTHER_HARNESS, { label: " " }).ok,
+      );
+      assert.deepEqual(withHarness(WEB_FIELDS.ref, "codex"), {
+        ok: true,
+        ref: WEB_FIELDS.ref,
+      });
+    });
 
     it("treats URL variants of one chat as the same identity", function () {
       const id = (text: string) => {
@@ -1294,16 +1413,28 @@ describe("core", function () {
       assert.equal(
         resumeCommand({
           kind: "session",
-          tool: "claude-code",
+          harness: "claude-code",
           sessionId: SESSION_ID,
         }),
         `claude --resume ${SESSION_ID}`,
       );
       assert.equal(
-        resumeCommand({ kind: "session", tool: "codex", name: "it's mine" }),
+        resumeCommand({ kind: "session", harness: "codex", name: "it's mine" }),
         `codex resume 'it'\\''s mine'`,
       );
       assert.isNull(resumeCommand(WEB_FIELDS.ref));
+      assert.equal(
+        resumeCommand({ kind: "session", harness: "cursor", sessionId: "c1" }),
+        "agent --resume=c1",
+      );
+      assert.isNull(
+        resumeCommand({
+          kind: "session",
+          harness: OTHER_HARNESS,
+          label: "Aider",
+          sessionId: "x",
+        }),
+      );
     });
 
     it("allows group-library writes only when opted in", function () {
@@ -1371,6 +1502,31 @@ describe("core", function () {
         );
         assert.equal(parsed.userNotesHtml, USER_NOTES);
       }
+    });
+
+    it("round-trips an Other harness with its own command", function () {
+      const fields: ChatNoteFields = {
+        ref: {
+          kind: "session",
+          harness: OTHER_HARNESS,
+          label: "Aider",
+          sessionId: "abc",
+          command: "aider --restore abc",
+        },
+        topic: "",
+        started: "2026-11-19",
+        machine: "LAPTOP",
+      };
+      const html = renderChatNote(fields);
+      assert.include(html, "<h1>Aider chat · 2026-11-19</h1>");
+      assert.include(html, "<p>Harness: Aider</p>");
+      assert.include(html, "<p>Resume: <code>aider --restore abc</code></p>");
+      const parsed = parseChatNote(html);
+      assert.isNotNull(parsed);
+      assert.deepEqual(
+        JSON.parse(JSON.stringify(parsed.fields)),
+        JSON.parse(JSON.stringify(fields)),
+      );
     });
 
     it("honors a hand-edited Session line", function () {

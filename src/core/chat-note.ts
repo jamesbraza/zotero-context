@@ -6,9 +6,11 @@
  */
 import {
   type ChatRef,
+  chatLabel,
+  HARNESSES,
+  OTHER_HARNESS,
   parseChatInput,
   resumeCommand,
-  toolLabel,
 } from "./chat-link";
 
 export interface ChatNoteFields {
@@ -28,7 +30,8 @@ export interface ParsedChatNote {
 }
 
 const SCHEMA_VERSION = 9;
-const FIELD_RE = /^(Link|Resume|Session|Name|Machine|Started):\s*(.*)$/s;
+const FIELD_RE =
+  /^(Link|Harness|Resume|Session|Name|Machine|Started):\s*(.*)$/s;
 
 function esc(text: string): string {
   return text
@@ -39,7 +42,7 @@ function esc(text: string): string {
 }
 
 export function chatNoteTitle(fields: ChatNoteFields): string {
-  const label = toolLabel(fields.ref.tool);
+  const label = chatLabel(fields.ref);
   const topic = fields.topic.trim();
   return topic
     ? `${label} chat: ${topic}`
@@ -52,6 +55,7 @@ function fieldParagraphs(fields: ChatNoteFields): string[] {
   if (ref.kind === "web") {
     out.push(`<p>Link: <a href="${esc(ref.url)}">${esc(ref.url)}</a></p>`);
   } else {
+    out.push(`<p>Harness: ${esc(chatLabel(ref))}</p>`);
     const cmd = resumeCommand(ref);
     if (cmd) out.push(`<p>Resume: <code>${esc(cmd)}</code></p>`);
     if (ref.sessionId) out.push(`<p>Session: ${esc(ref.sessionId)}</p>`);
@@ -115,29 +119,41 @@ export function parseChatNote(html: string): ParsedChatNote | null {
     return { fields: { ref: parsed.ref, topic, started }, userNotesHtml };
   }
 
-  // CLI session: the tool comes from the Resume line; the Session and Name
-  // lines win over it, so hand edits to them take effect
+  // CLI session. The harness comes from the Harness line (falling back to
+  // the Resume command); the Session and Name lines win over the command,
+  // so hand edits to them take effect
+  const harnessLine = values.get("Harness")?.trim() ?? "";
   const resume = values.get("Resume");
   const parsedResume = resume ? parseChatInput(resume) : null;
-  const tool =
-    parsedResume?.ok && parsedResume.ref.kind === "session"
-      ? parsedResume.ref.tool
-      : "claude-code";
-  const sessionId = values.get("Session") || undefined;
-  const name =
-    values.get("Name") ||
-    (parsedResume?.ok && parsedResume.ref.kind === "session"
-      ? parsedResume.ref.name
-      : undefined);
-  const resumeId =
-    parsedResume?.ok && parsedResume.ref.kind === "session"
-      ? parsedResume.ref.sessionId
-      : undefined;
-  const id = sessionId ?? resumeId;
-  if (!id && !name) return null;
+  // Only a recognized harness command counts; the bare-ID fallback would
+  // misread an "Other" harness's command as a Claude Code session name
+  const resumeRef =
+    parsedResume?.ok &&
+    !parsedResume.bare &&
+    parsedResume.ref.kind === "session"
+      ? parsedResume.ref
+      : null;
+  const known = HARNESSES.find(
+    (h) => h.label.toLowerCase() === harnessLine.toLowerCase(),
+  );
+  const isOther = !known && harnessLine !== "" && !resumeRef;
+  const harness = known?.id ?? (isOther ? OTHER_HARNESS : resumeRef?.harness);
+  const id = values.get("Session") || resumeRef?.sessionId;
+  const name = values.get("Name") || resumeRef?.name;
+  if (!harness || (!id && !name)) return null;
+  const ref: ChatRef = isOther
+    ? {
+        kind: "session",
+        harness,
+        label: harnessLine,
+        sessionId: id,
+        name,
+        command: resume || undefined,
+      }
+    : { kind: "session", harness, sessionId: id, name };
   return {
     fields: {
-      ref: { kind: "session", tool, sessionId: id, name },
+      ref,
       topic,
       started,
       machine: values.get("Machine") || undefined,

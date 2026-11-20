@@ -20,6 +20,7 @@ Verified during design (2026-11-18/19):
 - Claudian (Obsidian) runs ordinary Claude Code sessions (Agent SDK over the `claude` CLI, transcripts in `~/.claude/projects`), so its chats resume with `claude --resume <id>`.
 - Spike S3 (2026-11-19, Claude desktop on Windows via `Win+R`): `claude://claude.ai/project/<id>` opens the desktop app on that project's page, where a new chat starts inside the project. So the desktop choice maps a project URL to `claude://claude.ai/project/<id>`.
 - Spike S4 (2026-11-19, source lookup since no Codex install is available): Codex CLI `rust-v0.170.0` accepts `codex resume [SESSION_ID]` where the value is a UUID or a session name (a UUID wins if it parses), plus `--last`, `--all`, and `--include-non-interactive` (https://github.com/openai/codex/blob/rust-v0.170.0/codex-rs/cli/src/main.rs#L364-L388). Parsing accepts `codex resume <uuid-or-name>`; `--last` and a bare `codex resume` name no session, so they are rejected. Codex has no flag to preset a session ID, which confirms Codex links are manual only.
+- Agent harness resume syntax (2026-11-19, from source at a release tag unless noted): Claude Code `claude --resume <id-or-name>` (CHANGELOG v2.1.329, closed source); Codex `codex resume <uuid-or-name>` (rust-v0.170.0); Gemini CLI `gemini --resume <uuid>` (v0.70.0); Qwen Code `qwen --resume <uuid-or-title>` (v0.28.0); Copilot CLI `copilot --resume <id-or-name>` (changelog v1.0.114); OpenCode `opencode -s <ses_…>` (v1.19.6); Pi `pi --session <id>` (pi-mono v1.5.2); Cursor CLI `agent --resume=<chat-id>` (docs); Grok CLI `grok -s <id>` (grok-dev@1.1.7); Amp `amp threads continue T-…` (docs). Only Claude Code, Codex, Qwen, and Copilot resume by name, so a bare token for the others is read as an ID.
 - AI Chat Referencing v0.1.0 converts a Connector-saved Web Page into a `computerProgram` item with a "Prompts" child note and no Related links.
 
 ## Goals / Non-Goals
@@ -81,8 +82,8 @@ Linking uses a progress listener (`NOTIFY_LOCATION`) on the pane browser. The fi
 ### D6: Entry points and menus
 
 - Intro hotkey keeps `Ctrl+Alt+I`; a toolbar button reuses the `renderToolbar` pattern. The claude.ai-elsewhere choices keep the two-phase clipboard behavior; Claude Code and the pane are single-press.
-- Item context menus use `Zotero.MenuManager.registerMenu` (target `main/library/item`), unregistered on shutdown; strings go in `mainWindow.ftl`. "Link chat…" shows for regular items; chat-note actions show only for notes carrying the tag.
-- The dialog is a modal built with the toolkit's dialog helper: paste field, Title field, existing-chats list (from tagged notes, newest first, deduplicated by identity), group-library notice.
+- Item context menus use `Zotero.MenuManager.registerMenu` (target `main/library/item`), unregistered on shutdown; strings go in `mainWindow.ftl`. "Link chat…" shows for regular items; chat-note actions show only for notes carrying the tag. "Link chat…" is also on a reader tab's right-click menu (target `main/tab`), for that tab's paper, since in manual testing the reader is where users first reached for it.
+- The dialog is a modal built with the toolkit's dialog helper: paste field, Title field, existing-chats list (from tagged notes, newest first, deduplicated by identity), group-library notice. A bare ID or name doesn't say which harness it came from, so the dialog then shows the known-harness list plus "Other" (default Claude Code); "Other" takes a harness name and an optional resume command, stored verbatim. Full resume commands are recognized per harness and need no choice. CLI sessions get an editable Machine field prefilled with this computer's name, since a session linked after the fact may have run elsewhere. Dialog text is plain English like the plugin's toasts; only menu labels use Fluent, which `MenuManager` requires.
 - No notifications are part of the linking flow; existing `notify()` status toasts (e.g. "Command copied") remain.
 
 ### D7: Library-write confinement
@@ -97,6 +98,7 @@ A Claude Code start calls a new `GrabTrail.admit(paperId)` that adds to the trai
 
 - [claude.ai DOM changes break chat-box filling or title reading] → adapter isolation, graceful fallback to the clipboard intro, smoke test against a fixture, title falls back to `<Tool> chat · <date>`.
 - [Reader side-pane internals change across Zotero majors] → pane mounting lives in the adapter, with smoke coverage.
+- [Several harnesses (Gemini, Qwen, Pi, Codex) look sessions up per working directory, so a copied resume command may need a `cd` first] → `claude --resume <id>` was verified folder-independent; the others are untested, and a folder field was deliberately left out. Revisit if it bites.
 - [Embedded sign-in blocked (Google SSO)] → confirmed by spike S1; email-code sign-in works; document it.
 - [Pane mounting uses the private `reader._tabContainer`] → confined to the adapter, covered by `adapter-smoke.test.ts`.
 - [Frame scripts and the message manager are legacy Gecko APIs] → confined to the adapter; actor modules are the fallback if frame scripts go away.

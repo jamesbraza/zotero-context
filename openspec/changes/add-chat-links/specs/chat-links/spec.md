@@ -26,7 +26,7 @@ When one chat is linked to several papers, each paper SHALL get its own copy of 
 
 ### Requirement: Note layout
 
-A chat note SHALL begin with a title line `<Tool> chat: <topic>`, followed by labeled fields (a `Link:` line for web chats; `Resume:` and `Session:` lines for CLI sessions; `Machine:` for CLI sessions; `Started:`), followed by space for the user's own notes. The body SHALL NOT repeat the paper's title.
+A chat note SHALL begin with a title line `<Tool> chat: <topic>`, followed by labeled fields (`Link:` for web chats; `Harness:`, `Session:`, `Machine:`, and `Resume:` when the command is known, for CLI sessions; then `Started:`), followed by space for the user's own notes. The body SHALL NOT repeat the paper's title.
 
 #### Scenario: claude.ai chat note
 
@@ -54,7 +54,7 @@ The plugin SHALL read a chat's identity and fields from the note's visible label
 
 ### Requirement: Accepted link inputs
 
-Linking SHALL accept any http(s) URL, a bare session UUID, `claude --resume <id-or-name>`, `codex resume <id-or-name>`, or a session name. claude.ai `/chat/` and `/share/` URLs, `claude.ai/code/` URLs, ChatGPT and Codex URLs, Claude Code sessions, and Codex sessions SHALL be recognized and labeled with their tool.
+Linking SHALL accept any http(s) URL, the resume command of a known agent harness, or a bare session ID or name. claude.ai, ChatGPT, and Codex URLs SHALL be recognized and labeled. For a bare ID or name, the user SHALL choose its harness from the known list or "Other", which takes a harness name and an optional resume command.
 
 #### Scenario: Pasting a Claude Code exit line
 
@@ -65,6 +65,21 @@ Linking SHALL accept any http(s) URL, a bare session UUID, `claude --resume <id-
 
 - **WHEN** the user pastes `https://claude.ai/share/0bd3a44d-4a35-45d7-b3e0-bf93e6352988`
 - **THEN** it is recognized as a claude.ai chat and stored as that URL
+
+#### Scenario: Pasting another harness's resume command
+
+- **WHEN** the user pastes `opencode -s ses_01JABCDEFGHJKMNPQRSTVWXYZ0`
+- **THEN** it is recognized as an OpenCode session with that ID, and no harness choice is shown
+
+#### Scenario: Bare session ID
+
+- **WHEN** the user pastes only `888c8ed8-90a2-40ac-9a46-dcd7a8559d34`
+- **THEN** the dialog asks which harness it came from, defaulting to Claude Code
+
+#### Scenario: Harness not in the list
+
+- **WHEN** the user picks "Other" for a bare ID and names the harness "Aider" with no command
+- **THEN** the note records the session as an Aider chat with no `Resume:` line
 
 #### Scenario: Unrecognized but valid URL
 

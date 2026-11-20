@@ -23,7 +23,7 @@ const FIELDS: ChatNoteFields = {
 const SESSION: ChatNoteFields = {
   ref: {
     kind: "session",
-    tool: "claude-code",
+    harness: "claude-code",
     sessionId: "888c8ed8-90a2-40ac-9a46-dcd7a8559d34",
   },
   topic: "vaswani-2017",
