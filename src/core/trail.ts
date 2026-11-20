@@ -94,6 +94,13 @@ export class GrabTrail {
     return this.entries.find((g) => g.id === id);
   }
 
+  /** Admit a paper without a grab: the user started a chat about it, which
+   * is as deliberate as a grab (add-chat-links design D8). Like grabbed
+   * papers, admitted ones leave on `clear()`. */
+  admit(paperId: string): void {
+    this.papersSeen.add(paperId);
+  }
+
   /** Papers that have appeared in the trail, in first-grab order. */
   papers(): readonly string[] {
     return [...this.papersSeen];

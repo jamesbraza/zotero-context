@@ -10,7 +10,8 @@ import {
   registerMcpServer,
   unregisterMcpServer,
 } from "./modules/mcp-server";
-import { registerPaperIntro } from "./modules/paper-intro";
+import { closeAllPanes } from "./modules/chat-pane";
+import { registerChatStart } from "./modules/chat-start";
 import { registerPrefsPane } from "./modules/preferences";
 import { createZToolkit } from "./utils/ztoolkit";
 
@@ -27,7 +28,7 @@ async function onStartup() {
   initLocale();
   registerPrefsPane();
   registerGrabMode();
-  registerPaperIntro();
+  registerChatStart();
   registerBundleDelivery();
   registerMcpServer();
   registerChatLinkMenus();
@@ -58,6 +59,7 @@ function onMainWindowLoad(win: _ZoteroTypes.MainWindow): void {
 
 function onMainWindowUnload(_win: Window): void {
   deactivateAllGrabModes();
+  closeAllPanes();
   ztoolkit.unregisterAll();
 }
 
@@ -65,6 +67,8 @@ function onShutdown(): void {
   // Grab mode attaches capture listeners directly to reader documents;
   // without this they would survive plugin disable and swallow every click
   deactivateAllGrabModes();
+  // The claude.ai pane lives in reader tabs and would outlive the plugin too
+  closeAllPanes();
   // The MCP socket would likewise outlive a disabled plugin
   unregisterMcpServer();
   unregisterChatLinkMenus();

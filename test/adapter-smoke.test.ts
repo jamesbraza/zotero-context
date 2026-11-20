@@ -1,5 +1,12 @@
 import { assert } from "chai";
 import {
+  fillChatBox,
+  getPane,
+  loadInPane,
+  mountPane,
+  unmountPane,
+} from "../src/adapter/chat-pane";
+import {
   cropPageRegion,
   getOutlineEntries,
   getPageAt,
@@ -26,6 +33,21 @@ type ReaderInstance = _ZoteroTypes.ReaderInstance;
  */
 const FIXTURE_URL = "https://arxiv.org/pdf/1706.03762";
 const CONVERGE_MS = 30_000;
+
+/** A stand-in for claude.ai's chat page: its editor and file input, which
+ * report what they received through the document title. */
+const CHAT_FIXTURE = `data:text/html;charset=utf-8,${encodeURIComponent(
+  "<title>start</title>" +
+    '<div class="ProseMirror" contenteditable="true"></div>' +
+    '<input type="file" data-testid="file-upload">' +
+    "<script>const ed = document.querySelector('.ProseMirror');" +
+    "const inp = document.querySelector('input');" +
+    "const up = () => { document.title = (inp.files[0] ? inp.files[0].name : '') + '|' + ed.textContent; };" +
+    "ed.addEventListener('input', up); inp.addEventListener('change', up);</script>",
+)}`;
+// Top-level data: loads must be system-triggered (see loadInPane)
+const SYSTEM = Services.scriptSecurityManager.getSystemPrincipal();
+const NO_EDITOR_FIXTURE = "data:text/html;charset=utf-8,<title>changed</title>";
 
 /** Poll fn until it returns a truthy value or the timeout elapses. */
 async function until<T>(
@@ -167,5 +189,61 @@ describe("adapter smoke (live reader)", function () {
       height: 60,
     });
     assert.match(png ?? "", /^data:image\/png/, "crop yields a PNG data URL");
+  });
+
+  it("claude.ai pane mounts beside the PDF, fills a chat box, and unmounts cleanly", async function () {
+    this.timeout(60_000);
+    const host = (reader as unknown as { _tabContainer: Element })
+      ._tabContainer;
+    const before = host.children.length;
+    const pane = mountPane(reader, {
+      width: 400,
+      onClose: () => undefined,
+      onResize: () => undefined,
+    });
+    assert.isNotNull(pane);
+
+    assert.strictEqual(
+      mountPane(reader, {
+        width: 400,
+        onClose: () => undefined,
+        onResize: () => undefined,
+      }),
+      pane,
+      "mounting twice reuses the pane",
+    );
+    assert.equal(host.children.length, before + 2, "splitter + pane");
+
+    assert.isTrue(loadInPane(pane, CHAT_FIXTURE, SYSTEM));
+    const filled = await fillChatBox(
+      pane,
+      {
+        bytes: new Uint8Array([37, 80, 68, 70]),
+        fileName: "paper.pdf",
+        text: "Hello",
+      },
+      { origin: "data:", timeoutMs: 15_000 },
+    );
+    assert.equal(filled, "ok", "fixture editor and file input were filled");
+    const title = await until(() => {
+      const t = (pane.browser as { contentTitle?: string }).contentTitle ?? "";
+      return t === "paper.pdf|Hello" ? t : null;
+    }, 10_000);
+    assert.equal(title, "paper.pdf|Hello");
+
+    // A page without claude.ai's editor: fill reports failure (clipboard fallback)
+    assert.isTrue(loadInPane(pane, NO_EDITOR_FIXTURE, SYSTEM));
+    assert.equal(
+      await fillChatBox(
+        pane,
+        { bytes: null, fileName: "", text: "Hello" },
+        { origin: "data:", timeoutMs: 2_000 },
+      ),
+      "no-editor",
+    );
+
+    unmountPane(reader);
+    assert.isNull(getPane(reader));
+    assert.equal(host.children.length, before, "no pane DOM left behind");
   });
 });

@@ -3,6 +3,7 @@ import type { HttpRequest } from "../src/adapter/http-server";
 import {
   fieldText,
   itemForPaperId,
+  paperInfoFromItem,
   paperInfoMap,
   trail,
 } from "../src/modules/grab-session";
@@ -345,6 +346,24 @@ describe("mcp", function () {
       trail.clear();
       const response = await callTool("get_grab", { grab_id: grab.id });
       assert.isTrue(response.result?.isError);
+    });
+
+    it("serves papers admitted by a chat start until the trail clears", async function () {
+      const item = new Zotero.Item("journalArticle");
+      item.libraryID = Zotero.Libraries.userLibraryID;
+      item.setField("title", "Admitted Paper");
+      await item.saveTx();
+      try {
+        const { paperId } = paperInfoFromItem(item);
+        trail.admit(paperId);
+        const served = await callTool("get_paper", { paper_id: paperId });
+        assert.notOk(served.result?.isError);
+        trail.clear();
+        const refused = await callTool("get_paper", { paper_id: paperId });
+        assert.isTrue(refused.result?.isError);
+      } finally {
+        await item.eraseTx();
+      }
     });
 
     it("refuses retrieval for papers not in the trail", async function () {

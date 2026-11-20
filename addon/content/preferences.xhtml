@@ -54,6 +54,41 @@
 </groupbox>
 <groupbox>
   <label><html:h2 data-l10n-id="pref-chat-links-title"></html:h2></label>
+  <label data-l10n-id="pref-preferred-chat"></label>
+  <radiogroup
+    id="zotero-prefpane-__addonRef__-preferred-chat"
+    preference="preferredChat"
+  >
+    <radio value="ask" data-l10n-id="pref-preferred-chat-ask" />
+    <radio value="claude-code" data-l10n-id="pref-preferred-chat-claude-code" />
+    <radio
+      value="claude-desktop"
+      data-l10n-id="pref-preferred-chat-claude-desktop"
+    />
+    <radio
+      value="claude-browser"
+      data-l10n-id="pref-preferred-chat-claude-browser"
+    />
+    <radio
+      value="claude-zotero"
+      data-l10n-id="pref-preferred-chat-claude-zotero"
+    />
+  </radiogroup>
+  <hbox align="center">
+    <label data-l10n-id="pref-chat-project"></label>
+    <html:input
+      type="text"
+      id="zotero-prefpane-__addonRef__-chat-project"
+      preference="chatProject"
+      placeholder="https://claude.ai/project/…"
+      style="flex: 1"
+    />
+  </hbox>
+  <checkbox
+    id="zotero-prefpane-__addonRef__-link-chats-on-intro"
+    preference="linkChatsOnIntro"
+    data-l10n-id="pref-link-chats-on-intro"
+  />
   <checkbox
     id="zotero-prefpane-__addonRef__-link-chats-in-groups"
     preference="linkChatsInGroups"
