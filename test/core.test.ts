@@ -45,6 +45,7 @@ import {
 import {
   claudeCodeCommand,
   claudeCodeResumeOrStart,
+  cleanAbstract,
   composeClaudeCodeIntro,
   composeIntro,
   newChatUrls,
@@ -235,6 +236,45 @@ const CHAT_INPUT_ERRORS: { name: string; input: string }[] = [
   { name: "Gemini resume latest", input: "gemini --resume latest" },
   { name: "Grok resume latest", input: "grok -s latest" },
   { name: "Pi picker (no session)", input: "pi -r" },
+];
+
+const ABSTRACT_CASES: { name: string; raw: string; expected: string }[] = [
+  {
+    name: "a heading on its own line, with layout indentation",
+    raw: "Abstract\n            We present an approach\n            for discovery.",
+    expected: "We present an approach for discovery.",
+  },
+  {
+    name: "a colon label",
+    raw: "Abstract: We study X.",
+    expected: "We study X.",
+  },
+  {
+    name: "an uppercase label with a period",
+    raw: "ABSTRACT. We study X.",
+    expected: "We study X.",
+  },
+  {
+    name: "a Summary label with a dash",
+    raw: "Summary — We study X.",
+    expected: "We study X.",
+  },
+  {
+    name: "an abstract that opens with the word itself",
+    raw: "Abstract reasoning is hard.",
+    expected: "Abstract reasoning is hard.",
+  },
+  {
+    name: "a bare label with nothing after it",
+    raw: "Abstract",
+    expected: "Abstract",
+  },
+  {
+    name: "paragraph breaks",
+    raw: "First  part\n  continues.\n\n   Second part.",
+    expected: "First part continues.\n\nSecond part.",
+  },
+  { name: "an empty abstract", raw: "  ", expected: "" },
 ];
 
 const WEB_FIELDS: ChatNoteFields = {
@@ -1585,6 +1625,22 @@ describe("core", function () {
   });
 
   describe("core/chat-start", function () {
+    for (const { name, raw, expected } of ABSTRACT_CASES) {
+      it(`cleans an abstract: ${name}`, function () {
+        assert.equal(cleanAbstract(raw), expected);
+      });
+    }
+
+    it("never writes the abstract's own heading after the label", function () {
+      const intro = composeClaudeCodeIntro(
+        PAPER,
+        "Abstract\n            We present an approach",
+        "/p/x.pdf",
+      );
+      assert.include(intro, "\n\nAbstract: We present an approach");
+      assert.notInclude(intro, "Abstract: Abstract");
+    });
+
     it("keeps the attached-PDF intro unchanged", function () {
       assert.equal(
         composeIntro(PAPER, "We propose the Transformer."),
