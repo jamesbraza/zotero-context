@@ -9,22 +9,17 @@
  *   2nd press within 60s for the same paper — intro text only; paste it as
  *               the opening message.
  */
-import type { PaperInfo } from "../core/provenance";
+import { composeIntro } from "../core/chat-start";
 import { copyFileWithText, copyText } from "./clipboard";
 import { fieldText, paperInfoFromItem } from "./grab-session";
-import { registerChord } from "./hotkeys";
-import { guard, notify } from "./notify";
+import { notify } from "./notify";
 
 const PHASE_WINDOW_MS = 60_000;
 
 let lastFileCopy: { paperId: string; ts: number } | null = null;
 
-export function registerPaperIntro() {
-  registerChord("i", () => void guard("Paper intro", copyPaperIntro));
-}
-
 /** The top-level item in focus: current reader tab's paper, else selection. */
-function getFocusedTopItem(): Zotero.Item | null {
+export function getFocusedTopItem(): Zotero.Item | null {
   const tabs = ztoolkit.getGlobal("Zotero_Tabs");
   const reader = Zotero.Reader.getByTabID(tabs.selectedID);
   if (reader?.itemID) {
@@ -37,25 +32,28 @@ function getFocusedTopItem(): Zotero.Item | null {
   return selected.isAttachment() ? (selected.parentItem ?? selected) : selected;
 }
 
-async function copyPaperIntro() {
-  const top = getFocusedTopItem();
-  if (!top) {
-    notify("Paper intro: open a paper or select an item first", false);
-    return;
-  }
+/** Whether the next press for this paper copies the intro text (phase 2). */
+export function inSecondPhase(paperId: string): boolean {
+  return (
+    lastFileCopy?.paperId === paperId &&
+    Date.now() - lastFileCopy.ts < PHASE_WINDOW_MS
+  );
+}
+
+/**
+ * The two-phase clipboard intro for chats that take a pasted PDF. Returns
+ * true when this press put the PDF on the clipboard (phase 1).
+ */
+export async function clipboardIntro(top: Zotero.Item): Promise<boolean> {
   const { paperId, info } = paperInfoFromItem(top);
   const abstract = fieldText(top, "abstractNote").trim();
   const intro = composeIntro(info, abstract);
 
-  const secondPhase =
-    lastFileCopy?.paperId === paperId &&
-    Date.now() - lastFileCopy.ts < PHASE_WINDOW_MS;
-
-  if (secondPhase) {
+  if (inSecondPhase(paperId)) {
     copyText(intro);
     lastFileCopy = null;
     notify("Intro text on clipboard — paste it as your opening message");
-    return;
+    return false;
   }
 
   const attachment = top.isAttachment()
@@ -66,24 +64,20 @@ async function copyPaperIntro() {
     // No PDF file — still useful: copy the intro text directly
     copyText(intro);
     notify("No PDF found — intro text on clipboard");
-    return;
+    return false;
   }
   copyFileWithText(path, intro);
   lastFileCopy = { paperId, ts: Date.now() };
   notify(
     "PDF on clipboard — paste it, then press Ctrl+Alt+I again for the intro text",
   );
+  return true;
 }
 
-function composeIntro(info: PaperInfo, abstract: string): string {
-  const cite = `"${info.title}" (${info.creatorSummary}${
-    info.year ? ` ${info.year}` : ""
-  })`;
-  const lines = [
-    `I'm reading ${cite} — the PDF is attached; please treat it as the source of truth for this discussion.`,
-  ];
-  if (abstract) {
-    lines.push("", `Abstract: ${abstract}`);
-  }
-  return lines.join("\n");
+/** The paper's PDF path, or null when it has no file attachment. */
+export async function pdfPathOf(top: Zotero.Item): Promise<string | null> {
+  const attachment = top.isAttachment()
+    ? top
+    : (await top.getBestAttachment()) || null;
+  return attachment ? (await attachment.getFilePathAsync()) || null : null;
 }

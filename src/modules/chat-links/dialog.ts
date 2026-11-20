@@ -15,6 +15,7 @@ import {
 } from "../../core/chat-link";
 import type { ChatNoteFields } from "../../core/chat-note";
 import { notify } from "../notify";
+import { listBoxProps, paintListBox } from "./list-box";
 import {
   type ChatCopy,
   canLinkInLibrary,
@@ -37,7 +38,7 @@ const MACHINE_ID = "zotero-context-chat-machine";
 const OK_BUTTON = "zotero-context-chat-ok";
 
 /** Local calendar date as YYYY-MM-DD. */
-function todayISO(): string {
+export function todayISO(): string {
   const d = new Date();
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${String(d.getFullYear())}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -176,22 +177,7 @@ async function runChatDialog(
 
   /** Highlight the chosen row of one of the list boxes. */
   const paintList = (id: string, chosen: string) => {
-    const rowsOf = doc()?.querySelectorAll(`#${id} > div`) as unknown as
-      ArrayLike<HTMLElement> | undefined;
-    for (const row of Array.from(rowsOf ?? [])) {
-      const on = row.dataset["value"] === chosen;
-      row.style.background = on ? "SelectedItem" : "";
-      row.style.color = on ? "SelectedItemText" : "";
-      // Scroll only the list box (not the window) to keep the choice visible
-      const box = row.parentElement as HTMLElement | null;
-      if (on && box) {
-        const top = row.offsetTop - box.offsetTop;
-        if (top < box.scrollTop) box.scrollTop = top;
-        else if (top + row.offsetHeight > box.scrollTop + box.clientHeight) {
-          box.scrollTop = top + row.offsetHeight - box.clientHeight;
-        }
-      }
-    }
+    paintListBox(doc(), id, chosen);
   };
 
   const pickHarness = (value: string) => {
@@ -226,45 +212,7 @@ async function runChatDialog(
     validate();
   };
 
-  /**
-   * A scrollable list of clickable rows. Native <select> list boxes and
-   * popups, HTML radios, and XUL radiogroups all render badly in the
-   * toolkit's dialog window, so this is plain divs.
-   */
-  const listBox = (
-    id: string,
-    items: { value: string; label: string }[],
-    onPick: (value: string) => void,
-    rowClass?: string,
-  ) => ({
-    tag: "div",
-    namespace: "html",
-    id,
-    classList: rowClass ? [`${rowClass}-row`] : [],
-    styles: {
-      width: "28em",
-      maxHeight: "9em",
-      overflowY: "auto",
-      border: "1px solid GrayText",
-      borderRadius: "4px",
-      background: "Field",
-    },
-    children: items.map((item) => ({
-      tag: "div",
-      namespace: "html",
-      attributes: { "data-value": item.value },
-      properties: { textContent: item.label },
-      styles: { padding: "0.2em 0.5em", cursor: "pointer" },
-      listeners: [
-        {
-          type: "click",
-          listener: () => {
-            onPick(item.value);
-          },
-        },
-      ],
-    })),
-  });
+  const listBox = listBoxProps;
 
   const label = (text: string, rowClass?: string) => ({
     tag: "label",

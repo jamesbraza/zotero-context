@@ -10,7 +10,7 @@ import {
   registerMcpServer,
   unregisterMcpServer,
 } from "./modules/mcp-server";
-import { registerPaperIntro } from "./modules/paper-intro";
+import { registerChatStart } from "./modules/chat-start";
 import { registerPrefsPane } from "./modules/preferences";
 import { createZToolkit } from "./utils/ztoolkit";
 
@@ -27,7 +27,7 @@ async function onStartup() {
   initLocale();
   registerPrefsPane();
   registerGrabMode();
-  registerPaperIntro();
+  registerChatStart();
   registerBundleDelivery();
   registerMcpServer();
   registerChatLinkMenus();

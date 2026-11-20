@@ -61,9 +61,9 @@ When it is on:
   The token comparison runs in constant time,
   and a stored token that is missing or malformed is regenerated,
   never used as-is.
-- **Only papers you captured from are reachable.**
+- **Only papers you captured from, or started a Claude Code chat about, are reachable.**
   The server can return content and PDFs only for papers
-  you grabbed from during this session.
+  you grabbed from, or started a Claude Code chat about, during this session.
   It has no way to list or read the rest of your Zotero library or your files,
   and clearing the session trail (`Ctrl+Alt+X`) revokes access
   to everything captured so far.

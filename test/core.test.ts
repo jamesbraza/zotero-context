@@ -42,6 +42,14 @@ import {
   rewriteChatNote,
   type ChatNoteFields,
 } from "../src/core/chat-note";
+import {
+  claudeCodeCommand,
+  claudeCodeResumeOrStart,
+  composeClaudeCodeIntro,
+  composeIntro,
+  newChatUrls,
+  sessionNameFor,
+} from "../src/core/chat-start";
 
 const PAPER: PaperInfo = {
   title: "Attention Is All You Need",
@@ -417,6 +425,15 @@ describe("core", function () {
       assert.deepEqual(trail.papers(), ["a", "b"]);
       assert.lengthOf(trail.list(), 4);
       assert.lengthOf(trail.list({ paperId: "a" }), 3);
+    });
+
+    it("admits papers without grabs, and clears them with the trail", function () {
+      const trail = new GrabTrail();
+      trail.admit("1/INTRO");
+      assert.deepEqual(trail.papers(), ["1/INTRO"]);
+      assert.lengthOf(trail.list(), 0);
+      trail.clear();
+      assert.deepEqual(trail.papers(), []);
     });
 
     it("supports delta bundles via watermarks and clearing", function () {
@@ -1564,6 +1581,91 @@ describe("core", function () {
       const out = rewriteChatNote(html, { ...WEB_FIELDS, topic: "Retitled" });
       assert.include(out, "<h1>Claude chat: Retitled</h1>");
       assert.include(out, USER_NOTES);
+    });
+  });
+
+  describe("core/chat-start", function () {
+    it("keeps the attached-PDF intro unchanged", function () {
+      assert.equal(
+        composeIntro(PAPER, "We propose the Transformer."),
+        `I'm reading "Attention Is All You Need" (Vaswani et al. 2017) — the PDF is attached; please treat it as the source of truth for this discussion.\n\nAbstract: We propose the Transformer.`,
+      );
+    });
+
+    it("points Claude Code at the PDF path, and MCP when it's on", function () {
+      const plain = composeClaudeCodeIntro(PAPER, "", "C:\\papers\\1706.pdf");
+      assert.include(plain, "Its PDF is at C:\\papers\\1706.pdf;");
+      assert.notInclude(plain, "MCP");
+      const mcp = composeClaudeCodeIntro(
+        PAPER,
+        "Abs.",
+        "/p/1706.pdf",
+        "1/ABCD1234",
+      );
+      assert.include(mcp, "get_paper, fetch_pdf) with paper ID 1/ABCD1234");
+      assert.include(mcp, "\n\nAbstract: Abs.");
+      assert.include(
+        composeClaudeCodeIntro(PAPER, "", null, "1/ABCD1234"),
+        "get_paper with paper ID 1/ABCD1234",
+      );
+    });
+
+    it("names sessions after the first author and year", function () {
+      assert.equal(sessionNameFor(PAPER), "vaswani-2017");
+      assert.equal(
+        sessionNameFor({
+          title: "T",
+          creatorSummary: "Gödel and Turing",
+          year: "",
+        }),
+        "godel",
+      );
+      assert.equal(
+        sessionNameFor({ title: "T", creatorSummary: "", year: "2020" }),
+        "paper-2020",
+      );
+    });
+
+    it("quotes the intro for POSIX shells", function () {
+      const cmd = claudeCodeCommand(
+        "888c8ed8-90a2-40ac-9a46-dcd7a8559d34",
+        "vaswani-2017",
+        'It\'s "quoted"\nand $HOME',
+      );
+      assert.equal(
+        cmd,
+        "claude --session-id 888c8ed8-90a2-40ac-9a46-dcd7a8559d34 -n vaswani-2017 " +
+          "'It'\\''s \"quoted\"\nand $HOME'",
+      );
+    });
+
+    it("resumes, or starts under the same ID when never run", function () {
+      const id = "888c8ed8-90a2-40ac-9a46-dcd7a8559d34";
+      assert.equal(
+        claudeCodeResumeOrStart(id, "vaswani-2017", "Hi"),
+        `claude --resume ${id} || claude --session-id ${id} -n vaswani-2017 Hi`,
+      );
+    });
+
+    it("opens a project when one is configured, else a new chat", function () {
+      assert.deepEqual(newChatUrls(""), {
+        web: "https://claude.ai/new",
+        desktop: "claude://claude.ai/new",
+      });
+      assert.deepEqual(
+        newChatUrls(
+          " https://claude.ai/project/01a111a1-b7bc-7684-ac3e-ffc6b70d322e/ ",
+        ),
+        {
+          web: "https://claude.ai/project/01a111a1-b7bc-7684-ac3e-ffc6b70d322e",
+          desktop:
+            "claude://claude.ai/project/01a111a1-b7bc-7684-ac3e-ffc6b70d322e",
+        },
+      );
+      assert.equal(
+        newChatUrls("https://example.com/project/x").web,
+        "https://claude.ai/new",
+      );
     });
   });
 });

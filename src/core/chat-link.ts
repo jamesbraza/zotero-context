@@ -299,7 +299,7 @@ export function chatLabel(ref: ChatRef): string {
 }
 
 /** Shell-quote a session name for a copied command. */
-function shellQuote(value: string): string {
+export function shellQuote(value: string): string {
   return /^[\w.:@/-]+$/.test(value)
     ? value
     : `'${value.replace(/'/g, `'\\''`)}'`;

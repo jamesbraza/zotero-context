@@ -13,6 +13,10 @@ declare namespace _ZoteroTypes {
       "mcpPort": number;
       "mcpToken": string;
       "linkChatsInGroups": boolean;
+      "preferredChat": string;
+      "chatProject": string;
+      "linkChatsOnIntro": boolean;
+      "chatPaneWidth": number;
     };
   }
 }

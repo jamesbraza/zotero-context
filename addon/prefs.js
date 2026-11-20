@@ -4,3 +4,7 @@ pref("mcpEnabled", false);
 pref("mcpPort", 23122);
 pref("mcpToken", "");
 pref("linkChatsInGroups", false);
+pref("preferredChat", "ask");
+pref("chatProject", "");
+pref("linkChatsOnIntro", true);
+pref("chatPaneWidth", 420);

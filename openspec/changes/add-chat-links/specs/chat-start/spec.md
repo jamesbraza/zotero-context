@@ -8,12 +8,31 @@ Lets the paper intro and a New chat button start a chat about a paper in the use
 
 ### Requirement: Preferred chat setting
 
-The plugin SHALL provide a "Preferred chat" setting with four choices — Claude Code, Claude desktop app, claude.ai in your browser, claude.ai in Zotero — that decides what starting a chat does.
+The plugin SHALL provide a "Preferred chat" setting with five choices — Ask every time (the default), Claude Code, Claude desktop app, claude.ai in your browser, claude.ai in Zotero — that decides what starting a chat does. The plugin SHALL NOT pick a place on the user's behalf.
 
 #### Scenario: Changing the preferred chat
 
 - **WHEN** the user switches Preferred chat from claude.ai in your browser to Claude Code
 - **THEN** the next paper intro follows the Claude Code behavior
+
+### Requirement: Chooser while no place is saved
+
+While Preferred chat is "Ask every time", starting a chat SHALL first ask where to start it, listing the four places, with an opt-in "Always use this" that saves the choice to the setting. Cancelling SHALL start nothing.
+
+#### Scenario: Choosing once
+
+- **WHEN** the user starts a chat, picks Claude Code, and leaves "Always use this" unchecked
+- **THEN** the chat starts in Claude Code, and the next start asks again
+
+#### Scenario: Remembering the choice
+
+- **WHEN** the user picks claude.ai in your browser and checks "Always use this"
+- **THEN** the chat starts there, the setting now shows that choice, and later starts don't ask
+
+#### Scenario: Second press of a clipboard intro
+
+- **WHEN** the user presses the intro hotkey again within a minute to copy the intro text
+- **THEN** the intro text is copied without asking again
 
 ### Requirement: Project setting for claude.ai choices
 
@@ -46,6 +65,20 @@ With Preferred chat set to Claude Code, starting a chat SHALL generate a new ses
 
 - **WHEN** the user presses the intro hotkey on a paper with Preferred chat set to Claude Code
 - **THEN** the paper gains a Claude Code chat note whose session ID matches the one in the copied command, and running `claude --resume <that id>` later reopens the session
+
+### Requirement: Resuming an existing Claude Code session
+
+When the paper already has linked Claude Code sessions, starting a Claude Code chat SHALL offer to resume one of them (newest first) or start a new session. Resuming SHALL copy a command that resumes the session, or starts it under the same ID if it never ran, and SHALL write no new note.
+
+#### Scenario: Command never pasted
+
+- **WHEN** the user starts a Claude Code chat, never runs the copied command, and starts again on the same paper
+- **THEN** a dialog offers that session; choosing to resume copies a command that starts it under its original ID, and no second note is written
+
+#### Scenario: Starting another session
+
+- **WHEN** the user chooses "Start new session" in that dialog
+- **THEN** a new session ID, note, and start command are created as on a first start
 
 ### Requirement: Claude Code intro carries the PDF location
 

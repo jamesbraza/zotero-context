@@ -30,13 +30,13 @@
 
 ## 5. Starting chats from Zotero
 
-- [ ] 5.1 Add prefs and settings UI: Preferred chat (radiogroup, 4 choices), Start new chats in project (URL field), Link chats when starting an intro (checkbox, default on), Link chats in group libraries (checkbox, default off); verify values persist across restart
-- [ ] 5.2 Refactor `src/modules/paper-intro.ts` to branch on Preferred chat (export/reuse `getFocusedTopItem`, `composeIntro`); desktop/browser choices keep the two-phase clipboard flow and open `claude://claude.ai/new` / `https://claude.ai/new` or the mapped project URL; verify existing intro behavior is unchanged for those choices
-- [ ] 5.3 Implement the Claude Code start: mint UUID, write the note (respecting auto-link and group prefs), copy `claude --session-id <uuid> -n "<name>" "<intro>"` with citation, abstract, PDF path, and MCP paper ID when enabled; verify unit tests for the command/intro text and a Zotero-side test for the note
-- [ ] 5.4 Add `GrabTrail.admit(paperId)` in `src/core/trail.ts` (cleared by `clear()`) and call it from the Claude Code start; update SECURITY.md's MCP scope bullet; verify `test/mcp.test.ts` covers fetching an introduced paper and refusal after clear
-- [ ] 5.5 Add the reader-toolbar New chat button (same `renderToolbar` pattern as grab mode) calling the same start action; verify the button triggers the start in a dev build
-- [ ] 5.6 Manual e2e: with Preferred chat = Claude Code on a real paper, paste the copied command in a WSL terminal, confirm Claude reads the PDF (and via MCP when enabled), exit, then run "Copy resume command" from the note and confirm `claude --resume` reopens the session
-- [ ] 5.7 Manual e2e: with Preferred chat = Claude desktop app and = claude.ai in your browser, confirm the intro opens a new chat (and a project when set) and the PDF pastes; then link the chat via the dialog
+- [x] 5.1 Add prefs and settings UI: Preferred chat (radiogroup, 4 choices), Start new chats in project (URL field), Link chats when starting an intro (checkbox, default on), Link chats in group libraries (checkbox, default off); verify values persist across restart
+- [x] 5.2 Refactor `src/modules/paper-intro.ts` to branch on Preferred chat (export/reuse `getFocusedTopItem`, `composeIntro`); desktop/browser choices keep the two-phase clipboard flow and open `claude://claude.ai/new` / `https://claude.ai/new` or the mapped project URL; verify existing intro behavior is unchanged for those choices
+- [x] 5.3 Implement the Claude Code start: mint UUID, write the note (respecting auto-link and group prefs), copy `claude --session-id <uuid> -n "<name>" "<intro>"` with citation, abstract, PDF path, and MCP paper ID when enabled; verify unit tests for the command/intro text and a Zotero-side test for the note
+- [x] 5.4 Add `GrabTrail.admit(paperId)` in `src/core/trail.ts` (cleared by `clear()`) and call it from the Claude Code start; update SECURITY.md's MCP scope bullet; verify `test/mcp.test.ts` covers fetching an introduced paper and refusal after clear
+- [x] 5.5 Add the reader-toolbar New chat button (same `renderToolbar` pattern as grab mode) calling the same start action; verify the button triggers the start in a dev build
+- [x] 5.6 Manual e2e: with Preferred chat = Claude Code on a real paper, paste the copied command in a WSL terminal, confirm Claude reads the PDF (and via MCP when enabled), exit, then run "Copy resume command" from the note and confirm `claude --resume` reopens the session
+- [x] 5.7 Manual e2e: with Preferred chat = Claude desktop app and = claude.ai in your browser, confirm the intro opens a new chat (and a project when set) and the PDF pastes; then link the chat via the dialog
 
 ## 6. claude.ai in Zotero pane
 
