@@ -49,6 +49,9 @@ in which case set `PROFILE` manually.
 `npm start` builds the plugin in development mode, launches Zotero with it loaded,
 and watches `src/**` and `addon/**` to rebuild and hot-reload on change.
 
+Each feature is planned as an OpenSpec change before it's built,
+and the change's task list tracks it through to release.
+
 Debugging tips: run snippets in Zotero via Tools → Developer → Run JavaScript,
 and log with `Zotero.debug()` (view via Help → Debug Output Logging → View Output).
 

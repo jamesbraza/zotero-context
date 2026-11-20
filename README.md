@@ -14,10 +14,12 @@ and downloading/uploading/introducing the PDF itself.
 Zotero Context turns each of those into a click or a hotkey.
 
 Unlike plugins that embed an AI chat inside Zotero,
-this plugin has no chat UI, no API keys, and no model calls.
+this plugin has no chat UI of its own, no API keys, and no model calls.
 It ferries context to whichever chat you already use:
 push it via the clipboard, or let MCP-capable chats
 (Claude Code, Claude desktop, OpenAI's Codex CLI, ...) pull it themselves.
+It also remembers which chats discussed which papers,
+by linking each chat to its paper as a note.
 
 ## Features
 
@@ -55,9 +57,22 @@ in the reader toolbar (or press `Ctrl+Alt+G`), and the cursor becomes a crosshai
   (image grabs cycle onto the clipboard with repeated presses).
   `Ctrl+Alt+Shift+B` copies a full-session recap for seeding a fresh chat;
   `Ctrl+Alt+X` clears the trail.
-- **Paper intro**: `Ctrl+Alt+I` puts the paper's PDF file on the clipboard;
-  pasting into claude.ai attaches it.
-  Press again within a minute for an intro message (citation + abstract) to open the chat with.
+- **Start a chat**: click 💬 in the reader toolbar (or press `Ctrl+Alt+I`)
+  to start a chat about the paper where you usually chat,
+  linked to the paper when possible (see [Chat links](#chat-links)):
+  - **Claude Code**: copies a `claude --session-id …` command
+    that opens a session already linked to the paper, with the paper's PDF path in its first message.
+  - **Claude desktop app** or **claude.ai in your browser**:
+    puts the PDF on the clipboard and opens a new chat (or your claude.ai project);
+    paste to attach it, then press `Ctrl+Alt+I` again within a minute for the intro message
+    (citation + abstract).
+  - **claude.ai in Zotero**: opens claude.ai beside the PDF
+    with the paper attached and the intro typed in, ready to send.
+
+  Where you chat is the **Preferred chat** setting.
+  It starts as **Ask every time**:
+  each start asks where to chat, and **Always use this** saves your answer.
+
 - **Sentences come from Zotero's own text layer**: Zotero builds structured text for each document
   with a local layout model (the same text behind Read Aloud and Reading Mode).
   Sentence snap reads it, so sentences follow reading order across columns,
@@ -77,7 +92,57 @@ in the reader toolbar (or press `Ctrl+Alt+G`), and the cursor becomes a crosshai
 | `Ctrl+Alt+B`       | Copy bundle of grabs since last bundle            |
 | `Ctrl+Alt+Shift+B` | Copy full-session recap                           |
 | `Ctrl+Alt+X`       | Clear the session trail                           |
-| `Ctrl+Alt+I`       | Copy paper PDF; press again for the intro message |
+| `Ctrl+Alt+I` or 💬 | Start a chat about the paper (see Start a chat)   |
+
+## Chat links
+
+A chat link records which AI chat discussed which paper, so you can find and reopen it later.
+It's for reference, not citation:
+each paper the chat covered gets a child note (tagged `zotero-context/chat`),
+and copies of the same chat are connected through Zotero's **Related** field.
+
+```text
+Claude chat: Why multi-head beats single-head
+Link: https://claude.ai/chat/94a29078-…
+Started: 2026-11-19
+
+(your own notes)
+```
+
+Links get made two ways:
+
+- **Automatically, when you start a chat from Zotero** (💬 or `Ctrl+Alt+I`):
+  - Claude Code sessions are linked the moment the command is copied.
+    Starting again on a paper that already has a session offers to resume it,
+    and the copied command also starts a session you never got around to running.
+  - claude.ai in Zotero links the chat when you send its first message, titled after the chat.
+- **By hand**: right-click papers (or a reader tab) → **Link chat…**, then paste a chat link,
+  a resume command, or a session ID, or pick a chat that's already linked.
+  It recognizes claude.ai, ChatGPT, and Codex links,
+  and the resume commands of Claude Code, Codex, Gemini CLI, Qwen Code, Copilot CLI,
+  OpenCode, Pi, Cursor CLI, Grok CLI, and Amp;
+  for a bare session ID or name, it asks which tool it came from (or "Other…").
+
+Right-click a chat note for **Also link to…** (more papers),
+**Edit chat link…** (updates every copy, keeping each copy's own notes),
+**Copy resume command**, and **Open chat link**.
+
+Settings → Zotero Context → **Chat links** holds Preferred chat,
+an optional claude.ai project for new chats,
+whether chats started from Zotero get linked,
+and **Link chats in group libraries** (off by default, since group members would see the notes).
+
+Tips:
+
+- **claude.ai in Zotero** needs a one-time sign-in inside the pane: use email sign-in.
+  "Continue with Google" fails there with "There was an error logging you in",
+  most likely because Google refuses sign-in from browsers embedded in other apps.
+- The Claude desktop app opens after Zotero asks "Open the claude link with Claude?".
+- Claude Code deletes local sessions after 30 days by default.
+  To keep linked sessions resumable for longer, raise `cleanupPeriodDays`
+  in Claude Code's settings (e.g. `"cleanupPeriodDays": 365` in `~/.claude/settings.json`).
+- Some tools look sessions up per folder (e.g. Gemini CLI),
+  so their resume command may need a `cd` into the original folder first.
 
 ## MCP server (pull delivery)
 
@@ -136,7 +201,8 @@ sequenceDiagram
 | `fetch_pdf`  | The paper's PDF as a local file path (+ size) for the client to read directly                                    |
 
 Papers are identified by the grab trail, never by which reader tab has focus —
-and the server can only serve papers you have grabbed from this session.
+and the server can only serve papers you have grabbed from this session,
+or started a Claude Code chat about.
 
 ### Setup
 
@@ -168,23 +234,23 @@ Troubleshooting:
   the same pane (the copy buttons regenerate commands with the new port).
 - **401s after an update**: some clients drop configured headers; click
   **Copy token** and re-add the header manually.
-- **Windows Zotero + WSL chat client**: `fetch_pdf` returns Windows paths
-  (`C:\...`) that WSL processes must translate (`/mnt/c/...`); untested.
+- **Windows Zotero + WSL chat client**: `fetch_pdf` and Claude Code intros give Windows paths
+  (`C:\...`); Claude Code in WSL translates them to `/mnt/c/...` itself.
 
 ### Security
 
 Off by default; binds `127.0.0.1` only with `Host`/`Origin` rejection
 (DNS-rebinding defense); a bearer token on every request; retrieval scoped to
-papers grabbed this session — in the spirit of the
+papers grabbed (or started a Claude Code chat about) this session — in the spirit of the
 [MCP transport security guidance][mcp-security].
 Project-wide security model, data flows, and accepted risks: [SECURITY.md](SECURITY.md).
 
 ## Limitations (current)
 
-- Grabs are ephemeral: nothing is written to your library, and the trail resets with Zotero.
+- Grabs are ephemeral: they're never written to your library, and the trail resets with Zotero.
+  The only library writes are the chat-link notes you create.
 - Hotkeys are fixed for now; preferences for bindings and press-and-hold are planned.
-- Element-picking (click a figure to auto-bound it) is on the roadmap;
-  see `openspec/changes/add-context-ferry/` for the full plan.
+- Element-picking (click a figure to auto-bound it) is on the roadmap.
 
 ## Installation
 
