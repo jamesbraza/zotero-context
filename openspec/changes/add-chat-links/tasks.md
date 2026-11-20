@@ -9,24 +9,24 @@
 
 ## 2. Write rule and parsing core
 
-- [ ] 2.1 Amend `openspec/config.yaml` invariant to "Grabs are ephemeral; the only library writes are chat-link notes, their tag, and Related links (see add-chat-links)"; verify `openspec validate add-chat-links --strict` still passes
-- [ ] 2.2 Add an eslint override exempting only `src/modules/chat-links/store.ts` from the `no-restricted-syntax` write ban; verify `npm run lint:check` fails on a write call placed in any other file and passes otherwise
-- [ ] 2.3 Implement pure link parsing and normalization in `src/core/` (http(s) URLs, claude.ai `/chat/` `/share/` `/code/`, ChatGPT/Codex URLs, bare UUID, `claude --resume <id-or-name>`, `codex resume <id-or-name>`, names; identity normalization); verify with unit tests in `test/core.test.ts` covering every scenario of the "Accepted link inputs" and "Format-only validation" requirements
-- [ ] 2.4 Implement pure note rendering and parsing in `src/core/` (title line, labeled fields, user-notes area preserved on rewrite, topic fallback); verify round-trip unit tests including hand-edited fields
+- [x] 2.1 Amend `openspec/config.yaml` invariant to "Grabs are ephemeral; the only library writes are chat-link notes, their tag, and Related links (see add-chat-links)"; verify `openspec validate add-chat-links --strict` still passes
+- [x] 2.2 Add an eslint override exempting only `src/modules/chat-links/store.ts` from the `no-restricted-syntax` write ban; verify `npm run lint:check` fails on a write call placed in any other file and passes otherwise
+- [x] 2.3 Implement pure link parsing and normalization in `src/core/` (http(s) URLs, claude.ai `/chat/` `/share/` `/code/`, ChatGPT/Codex URLs, bare UUID, `claude --resume <id-or-name>`, `codex resume <id-or-name>`, names; identity normalization); verify with unit tests in `test/core.test.ts` covering every scenario of the "Accepted link inputs" and "Format-only validation" requirements
+- [x] 2.4 Implement pure note rendering and parsing in `src/core/` (title line, labeled fields, user-notes area preserved on rewrite, topic fallback); verify round-trip unit tests including hand-edited fields
 
 ## 3. Note store
 
-- [ ] 3.1 Implement `src/modules/chat-links/store.ts`: create a chat note under a paper with the tag, find copies by identity, link a chat to more papers with Related among all copies, no-op on duplicates; verify with Zotero-side tests that create and erase test items
-- [ ] 3.2 Add edit propagation (rewrite title + fields in every copy, keep each copy's notes); verify with a test editing a chat linked to two papers
-- [ ] 3.3 Add the "Link chats in group libraries" pref (default off) and refuse group-library writes in the store when off; verify with a test against a group-library item or a stubbed library type
-- [ ] 3.4 Update SECURITY.md ("What this plugin does not do") to describe the narrow write exception and the group default; verify the text matches the "Narrow library-write scope" requirement
+- [x] 3.1 Implement `src/modules/chat-links/store.ts`: create a chat note under a paper with the tag, find copies by identity, link a chat to more papers with Related among all copies, no-op on duplicates; verify with Zotero-side tests that create and erase test items
+- [x] 3.2 Add edit propagation (rewrite title + fields in every copy, keep each copy's notes); verify with a test editing a chat linked to two papers
+- [x] 3.3 Add the "Link chats in group libraries" pref (default off) and refuse group-library writes in the store when off; verify with a test against a group-library item or a stubbed library type
+- [x] 3.4 Update SECURITY.md ("What this plugin does not do") to describe the narrow write exception and the group default; verify the text matches the "Narrow library-write scope" requirement
 
 ## 4. Manual linking UI
 
-- [ ] 4.1 Register item context menus via `Zotero.MenuManager` (`Link chat…` on regular items; `Also link to…`, `Edit chat link…`, `Copy resume command`, `Open chat link` on tagged chat notes), unregistered on shutdown, strings in `mainWindow.ftl`; verify menus appear only on the right item types in a dev build
-- [ ] 4.2 Build the Link chat dialog (paste field with inline validation, Title field, existing-chats list newest first, group notice or opt-in explanation); verify each "Link chat dialog" and "Group libraries are opt-in" scenario in a dev build
-- [ ] 4.3 Implement the chat-note actions (item picker for Also link to…, edit dialog prefilled, copy resume command to clipboard without launching anything, open web link in browser); verify each "Chat note actions" scenario in a dev build
-- [ ] 4.4 Manual e2e: link a real claude.ai chat URL and a real `claude --resume <id>` line to a real paper, add a second paper via Also link to…, retitle via Edit chat link…, and confirm Related, tags, and per-copy notes in Zotero
+- [x] 4.1 Register item context menus via `Zotero.MenuManager` (`Link chat…` on regular items; `Also link to…`, `Edit chat link…`, `Copy resume command`, `Open chat link` on tagged chat notes), unregistered on shutdown, strings in `mainWindow.ftl`; verify menus appear only on the right item types in a dev build
+- [x] 4.2 Build the Link chat dialog (paste field with inline validation, Title field, existing-chats list newest first, group notice or opt-in explanation); verify each "Link chat dialog" and "Group libraries are opt-in" scenario in a dev build
+- [x] 4.3 Implement the chat-note actions (item picker for Also link to…, edit dialog prefilled, copy resume command to clipboard without launching anything, open web link in browser); verify each "Chat note actions" scenario in a dev build
+- [x] 4.4 Manual e2e: link a real claude.ai chat URL and a real `claude --resume <id>` line to a real paper, add a second paper via Also link to…, retitle via Edit chat link…, and confirm Related, tags, and per-copy notes in Zotero
 
 ## 5. Starting chats from Zotero
 

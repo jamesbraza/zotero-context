@@ -15,4 +15,7 @@ pref-mcp-copy-config =
     .label = Copy MCP config (JSON)
 pref-mcp-copy-token =
     .label = Copy token
+pref-chat-links-title = Chat links
+pref-link-chats-in-groups =
+    .label = Link chats in group libraries (group members will see the chat notes)
 pref-help = { $name } Build { $version } { $time }
