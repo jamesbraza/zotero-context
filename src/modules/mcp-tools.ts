@@ -16,6 +16,7 @@ import {
   formatTextGrab,
   type PaperInfo,
 } from "../core/provenance";
+import { cleanAbstract } from "../core/chat-start";
 import type { GrabTrail } from "../core/trail";
 import type { Grab } from "../core/types";
 
@@ -255,7 +256,7 @@ export function createMcpServer(deps: McpDeps): McpServer {
       paper_id,
       ...paperSummary(deps, paper_id),
       date: deps.fieldText(item, "date"),
-      abstract: deps.fieldText(item, "abstractNote"),
+      abstract: cleanAbstract(deps.fieldText(item, "abstractNote")),
       doi: deps.fieldText(item, "DOI"),
       url: deps.fieldText(item, "url"),
     });

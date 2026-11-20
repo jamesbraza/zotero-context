@@ -12,12 +12,34 @@ function citation(info: PaperInfo): string {
   })`;
 }
 
+/** A heading that publisher metadata sometimes leaves at the start of the
+ * abstract ("Abstract\n    We present…", "ABSTRACT. We…"). Only a label
+ * followed by punctuation or a line break counts, so an abstract that opens
+ * with the word itself ("Abstract reasoning is…") is left alone. */
+const ABSTRACT_LABEL = /^\s*(?:abstract|summary)\s*(?:[:.\-–—]\s*|\n\s*)/i;
+
+/**
+ * Tidy an abstract for chat text: drop a leading "Abstract"/"Summary"
+ * heading, collapse layout whitespace (line breaks and indentation) to
+ * single spaces, and keep blank-line paragraph breaks.
+ */
+export function cleanAbstract(raw: string): string {
+  const unlabeled = raw.replace(ABSTRACT_LABEL, "");
+  const text = unlabeled.trim() ? unlabeled : raw;
+  return text
+    .split(/\n\s*\n/)
+    .map((paragraph) => paragraph.replace(/\s+/g, " ").trim())
+    .filter(Boolean)
+    .join("\n\n");
+}
+
 /** The opening message for a chat where the PDF is attached alongside. */
 export function composeIntro(info: PaperInfo, abstract: string): string {
   const lines = [
     `I'm reading ${citation(info)} — the PDF is attached; please treat it as the source of truth for this discussion.`,
   ];
-  if (abstract) lines.push("", `Abstract: ${abstract}`);
+  const cleaned = cleanAbstract(abstract);
+  if (cleaned) lines.push("", `Abstract: ${cleaned}`);
   return lines.join("\n");
 }
 
@@ -42,7 +64,8 @@ export function composeClaudeCodeIntro(
       `Use the zotero-context MCP tool get_paper with paper ID ${mcpPaperId} for its details.`,
     );
   }
-  if (abstract) lines.push("", `Abstract: ${abstract}`);
+  const cleaned = cleanAbstract(abstract);
+  if (cleaned) lines.push("", `Abstract: ${cleaned}`);
   return lines.join("\n");
 }
 
