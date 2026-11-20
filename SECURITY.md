@@ -11,12 +11,16 @@ and how to report a vulnerability.
 
 ## What this plugin does not do
 
-- No chat UI, no API keys, no calls to AI services.
-- No internet access:
+- No chat UI of its own, no API keys, no calls to AI services.
+- No internet access of its own:
   the plugin never makes outbound network connections.
   Its only network component is the optional MCP server,
   which listens on your own machine (127.0.0.1)
   and is unreachable from other machines.
+  The one exception is a choice you make:
+  with Preferred chat set to "claude.ai in Zotero",
+  Zotero shows the claude.ai website in a pane beside the PDF,
+  the same way a browser tab would.
 - No changes to your Zotero library beyond chat links you create:
   captured content lives in memory only and is gone when Zotero closes.
   The only library writes are chat-link notes you create on purpose
@@ -26,6 +30,23 @@ and how to report a vulnerability.
   Chat links are never written to group libraries unless you turn that on in settings,
   since group members would see them.
   An automated check confines library-write calls to that one module.
+
+## The claude.ai pane
+
+Only used when Preferred chat is "claude.ai in Zotero",
+and opened only when you start or open a chat.
+
+- **Ordinary, unprivileged web content.**
+  The page runs in its own sandboxed content process (Firefox site isolation)
+  with claude.ai's own web permissions, so it cannot reach Zotero, your library,
+  or your files.
+- **What the plugin does to the page:**
+  it attaches the paper's PDF and types the intro into claude.ai's chat box,
+  through code that runs with the page's own permissions (nothing privileged runs in the page),
+  and it reads the chat's address and title to link the chat to the paper.
+  It sends nothing anywhere itself; you press Send.
+- **Sign-in** is stored as claude.ai cookies in Zotero's profile,
+  like a browser's, and stays until claude.ai expires it.
 
 ## Where your data goes
 

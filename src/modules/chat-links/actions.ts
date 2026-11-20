@@ -3,6 +3,8 @@
  * launches programs: resume commands are copied, never executed.
  */
 import { resumeCommand } from "../../core/chat-link";
+import { getPref } from "../../utils/prefs";
+import { openInPane } from "../chat-pane";
 import { copyText } from "../clipboard";
 import { notify } from "../notify";
 import { chatCopyOf, linkChat } from "./store";
@@ -75,10 +77,20 @@ export function copyResumeCommand(note: Zotero.Item): void {
   notify("Resume command copied — paste it in a terminal");
 }
 
-export function openChatLink(note: Zotero.Item): void {
+export async function openChatLink(note: Zotero.Item): Promise<void> {
   const ref = chatCopyOf(note)?.parsed.fields.ref;
   if (ref?.kind !== "web") {
     notify("This chat has no link to open", false);
+    return;
+  }
+  // claude.ai chats reopen beside their paper when that's where chats start
+  const paper = note.parentItem;
+  if (
+    getPref("preferredChat") === "claude-zotero" &&
+    ref.tool === "claude" &&
+    paper &&
+    (await openInPane(paper, ref.url))
+  ) {
     return;
   }
   Zotero.launchURL(ref.url);

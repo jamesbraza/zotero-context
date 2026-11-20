@@ -21,6 +21,7 @@ import {
 } from "./chat-links/store";
 import { todayISO } from "./chat-links/dialog";
 import { listBoxProps, paintListBox, toggleProps } from "./chat-links/list-box";
+import { startPaneChat } from "./chat-pane";
 import { copyText } from "./clipboard";
 import { fieldText, paperInfoFromItem, trail } from "./grab-session";
 import { registerChord } from "./hotkeys";
@@ -275,8 +276,8 @@ async function startChat(top: Zotero.Item): Promise<void> {
       await startClaudeAi(top, "web");
       return;
     case "claude-zotero":
-      // The claude.ai pane arrives with add-chat-links group 6
-      await startClaudeAi(top, "web");
+      // No PDF to show beside: open claude.ai in the browser instead
+      if (!(await startPaneChat(top))) await startClaudeAi(top, "web");
       return;
   }
 }

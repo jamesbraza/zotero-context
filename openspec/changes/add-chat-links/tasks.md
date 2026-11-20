@@ -40,11 +40,11 @@
 
 ## 6. claude.ai in Zotero pane
 
-- [ ] 6.1 Implement `src/adapter/chat-pane.ts`: mount/unmount the unprivileged claude.ai pane in the reader per spike S1, with graceful failure results; add coverage to `test/adapter-smoke.test.ts`
-- [ ] 6.2 Implement chat-box filling (PDF + intro) and chat-title reading in the adapter per spike S2, falling back to the clipboard intro on failure; verify the fallback path with a test that simulates a missing chat box
-- [ ] 6.3 Wire the pane into the start action and "Open chat link" (pane closed until asked); link the first `/chat/<uuid>` reached after a start and stop observing; verify each "Pane links its first chat" scenario in a dev build
-- [ ] 6.4 Document the hosted claude.ai pane in SECURITY.md (unprivileged content, cookies in Zotero profile, no bridge to Zotero APIs); verify the text matches the "claude.ai in a reader side pane" requirement
-- [ ] 6.5 Manual e2e: with Preferred chat = claude.ai in Zotero on a real paper, sign in, press the intro, send, confirm the note appears with the chat title; restart Zotero and confirm sign-in persists and "Open chat link" reopens the chat in the pane
+- [x] 6.1 Implement `src/adapter/chat-pane.ts`: mount/unmount the unprivileged claude.ai pane in the reader per spike S1, with graceful failure results; add coverage to `test/adapter-smoke.test.ts`
+- [x] 6.2 Implement chat-box filling (PDF + intro) and chat-title reading in the adapter per spike S2, falling back to the clipboard intro on failure; verify the fallback path with a test that simulates a missing chat box
+- [x] 6.3 Wire the pane into the start action and "Open chat link" (pane closed until asked); link the first `/chat/<uuid>` reached after a start and stop observing; verify each "Pane links its first chat" scenario in a dev build
+- [x] 6.4 Document the hosted claude.ai pane in SECURITY.md (unprivileged content, cookies in Zotero profile, no bridge to Zotero APIs); verify the text matches the "claude.ai in a reader side pane" requirement
+- [x] 6.5 Manual e2e: with Preferred chat = claude.ai in Zotero on a real paper, sign in, press the intro, send, confirm the note appears with the chat title; restart Zotero and confirm sign-in persists and "Open chat link" reopens the chat in the pane
 
 ## 7. Docs and release gating
 
