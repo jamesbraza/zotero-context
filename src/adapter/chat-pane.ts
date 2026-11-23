@@ -4,6 +4,11 @@
  * claude.ai's page structure. Failures return null/false, like the reader
  * adapter, so callers can fall back to the clipboard intro.
  *
+ * Layout: Zotero 10's reader tab container holds `[browser.reader, popupset]`.
+ * The splitter and pane go right after `browser.reader`, not at the end: a
+ * splitter resizes its nearest neighbors, and after the popupset it would hand
+ * the width the pane gives up to the popupset, leaving a grey gap.
+ *
  * Safety: the pane is a remote content <browser> (with Fission, its own
  * isolated `https://claude.ai` content process), so the page can't reach
  * Zotero. Page operations run from a frame script in a sandbox whose
@@ -22,6 +27,8 @@ export interface ChatPane {
   reader: ReaderInstance;
   splitter: Element;
   container: HTMLElement;
+  /** The reader's PDF browser, the splitter's left neighbor. */
+  readerBrowser: Element | null;
   title: Element;
   browser: any;
   /** Keeps progress listeners alive (they're held weakly). */
@@ -157,7 +164,9 @@ export function mountPane(
       browser.setAttribute(k, v);
     }
     container.append(header, browser);
-    host.append(splitter, container);
+    const readerBrowser = host.querySelector(":scope > browser.reader");
+    if (readerBrowser) readerBrowser.after(splitter, container);
+    else host.append(splitter, container);
 
     splitter.addEventListener("mouseup", () => {
       opts.onResize(Math.round(container.getBoundingClientRect().width));
@@ -167,6 +176,7 @@ export function mountPane(
       reader,
       splitter,
       container,
+      readerBrowser,
       title,
       browser,
       listeners: new Set(),
@@ -187,6 +197,10 @@ export function unmountPane(reader: ReaderInstance): void {
     pane.listeners.clear();
     pane.splitter.remove();
     pane.container.remove();
+    // The splitter fixes a width on the PDF browser; drop it so the PDF fills
+    // the tab again
+    pane.readerBrowser?.removeAttribute("width");
+    (pane.readerBrowser as HTMLElement | null)?.style.removeProperty("width");
   } catch (e) {
     logError("unmountPane", e);
   }
