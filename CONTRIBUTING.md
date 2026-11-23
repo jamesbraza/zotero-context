@@ -82,6 +82,8 @@ so tests have the real `Zotero` API and reader available
 (see `test/core.test.ts` for pure-logic tests; throwaway probe suites that open a real reader
 and dump internals findings to JSON are a useful pattern for diagnosing reader-internals
 issues, but are kept out of version control).
+That Zotero runs headless (`MOZ_HEADLESS=1`), so it doesn't take focus from what you're typing;
+`npm run test:gui` runs the same tests with the Zotero window shown.
 Caveats:
 
 - Run one test invocation at a time;
@@ -106,7 +108,8 @@ Or run tools individually:
 npm run lint:check  # Prettier + ESLint, check only
 npm run lint:fix    # Prettier + ESLint with autofix
 npm run typecheck   # tsc --noEmit
-npm run test        # Build and run tests in a live Zotero instance
+npm run test        # Build and run tests in a live, headless Zotero instance
+npm run test:gui    # Same, with the Zotero window shown
 npm run build       # Production build into .scaffold/build/, with .xpi
 ```
 
