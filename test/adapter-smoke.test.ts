@@ -246,4 +246,114 @@ describe("adapter smoke (live reader)", function () {
     assert.isNull(getPane(reader));
     assert.equal(host.children.length, before, "no pane DOM left behind");
   });
+
+  it("claude.ai pane splitter trades width with the PDF, leaving no gap", async function () {
+    this.timeout(30_000);
+    const host = (reader as unknown as { _tabContainer: Element })
+      ._tabContainer;
+    const readerBrowser = host.querySelector(":scope > browser.reader");
+    assert.ok(readerBrowser, "reader tab holds the PDF browser");
+    const pane = mountPane(reader, {
+      width: 400,
+      onClose: () => undefined,
+      onResize: () => undefined,
+    });
+    assert.isNotNull(pane);
+    try {
+      const win = host.ownerDocument.defaultView as Window & {
+        // Firefox 153+ (Zotero 11)
+        synthesizeMouseEvent?: (
+          type: string,
+          x: number,
+          y: number,
+          init: { button: number; buttons: number; clickCount: number },
+        ) => boolean;
+        // Firefox 140 (Zotero 10)
+        windowUtils: {
+          sendMouseEvent: (
+            type: string,
+            x: number,
+            y: number,
+            button: number,
+            clickCount: number,
+            modifiers: number,
+          ) => void;
+        };
+      };
+      /** Send a trusted left-button mouse event at window coordinates. */
+      const mouse = (type: string, x: number, y: number) => {
+        const clickCount = type === "mousemove" ? 0 : 1;
+        if (win.synthesizeMouseEvent) {
+          win.synthesizeMouseEvent(type, x, y, {
+            button: 0,
+            buttons: type === "mouseup" ? 0 : 1,
+            clickCount,
+          });
+        } else {
+          win.windowUtils.sendMouseEvent(type, x, y, 0, clickCount, 0);
+        }
+      };
+      const frame = () =>
+        new Promise<void>((r) => {
+          win.requestAnimationFrame(() => {
+            r();
+          });
+        });
+      await frame();
+      /** Drag the splitter horizontally by dx with trusted mouse events. */
+      const drag = async (dx: number) => {
+        const box = pane.splitter.getBoundingClientRect();
+        const x = box.left + box.width / 2;
+        const y = box.top + box.height / 2;
+        mouse("mousedown", x, y);
+        await frame();
+        for (let i = 1; i <= 10; i++) {
+          mouse("mousemove", x + (dx * i) / 10, y);
+          await frame();
+        }
+        mouse("mouseup", x + dx, y);
+        await frame();
+      };
+      const width = (el: Element) => el.getBoundingClientRect().width;
+      const gap = () =>
+        pane.splitter.getBoundingClientRect().left -
+        readerBrowser.getBoundingClientRect().right;
+
+      const start = width(pane.container);
+      await drag(-150);
+      assert.approximately(
+        width(pane.container),
+        start + 150,
+        5,
+        "dragging left widens the pane",
+      );
+      await drag(200);
+      assert.approximately(
+        width(pane.container),
+        start - 50,
+        5,
+        "dragging right narrows the pane",
+      );
+      assert.approximately(gap(), 0, 1, "no gap between PDF and splitter");
+      const popupset = host.querySelector(":scope > popupset");
+      if (popupset) assert.equal(width(popupset), 0, "popupset stays empty");
+      assert.equal(
+        pane.splitter.previousElementSibling?.className,
+        "reader",
+        "the splitter's left neighbor is the PDF browser",
+      );
+      assert.isTrue(
+        pane.splitter.nextElementSibling === pane.container,
+        "the pane follows the splitter",
+      );
+    } finally {
+      unmountPane(reader);
+    }
+    assert.isNull(readerBrowser.getAttribute("width"), "no leftover width");
+    assert.equal(
+      (readerBrowser as HTMLElement).style.width,
+      "",
+      "no leftover inline width",
+    );
+  });
 });

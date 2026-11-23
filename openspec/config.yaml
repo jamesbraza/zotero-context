@@ -35,6 +35,8 @@ rules:
   tasks:
     - List manual end-to-end checks (real paper, real chat client) as their own
       tasks
+    - Manual checks of interactive UI (drag, resize, open/close) go both ways
+      and back, not just one direction
     - No task may add Zotero access to src/core/ or reader-internals access
       outside src/adapter/
 
