@@ -30,7 +30,8 @@
     "lint:fix": "prettier --write . && eslint . --fix",
     "typecheck": "tsc --noEmit",
     "release": "[ \"$CI\" = true ] || { echo 'npm run release is CI-only: cut a GitHub release instead'; exit 1; }; zotero-plugin release",
-    "test": "zotero-plugin test",
+    "test": "MOZ_HEADLESS=1 zotero-plugin test",
+    "test:gui": "zotero-plugin test",
     "update-deps": "npm update --save"
   },
   "dependencies": {
